@@ -173,7 +173,7 @@ QA_CONFIG_IMPL_DECL_SKIP=(
 )
 
 PATCHES=(
-	"${FILESDIR}/${PN}-prefix-4.patch"
+	"${FILESDIR}/${PN}-prefix-5.patch"
 	"${FILESDIR}/${PN}-respect-cflags-3.patch"
 )
 
@@ -336,7 +336,6 @@ multilib_src_configure() {
 		$(use_with kerberos gssapi "${EPREFIX}"/usr)
 		$(use_with sasl-scram libgsasl)
 		$(use_with psl libpsl)
-		--without-msh3
 		--without-quiche
 		--without-schannel
 		--without-winidn

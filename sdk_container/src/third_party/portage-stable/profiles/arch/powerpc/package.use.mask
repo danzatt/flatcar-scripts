@@ -295,7 +295,8 @@ app-forensics/sleuthkit java
 # Michał Górny <mgorny@gentoo.org> (2017-03-24)
 # libcxx fails to compile on ppc*, #595744.
 llvm-core/clang-common default-libcxx
-llvm-core/clang-runtime default-libcxx libcxx
+llvm-runtimes/clang-runtime default-libcxx libcxx
+llvm-runtimes/clang-stdlib-config default-libcxx
 
 # James Le Cuirot <chewi@gentoo.org> (2016-12-14)
 # DOSBox + OpenGLide is untested on this arch.
@@ -304,7 +305,6 @@ games-emulation/dosbox glide
 # Thomas Deutschmann <whissi@gentoo.org> (2016-08-26)
 # Enable numa support on supported architectures
 dev-db/mysql -numa
-dev-db/percona-server -numa
 
 # Michael Palimaka <kensington@gentoo.org> (2016-07-07)
 # Requires unkeyworded dependencies
