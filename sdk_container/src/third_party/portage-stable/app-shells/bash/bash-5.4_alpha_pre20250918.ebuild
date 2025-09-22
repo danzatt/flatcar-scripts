@@ -46,7 +46,7 @@ elif (( PLEVEL < 0 )) && [[ ${PV} == *_p* ]] ; then
 	# the alpha, and the next pre-release is usually quite far away.
 	#
 	# i.e. if it's worth packaging the alpha, it's worth packaging a followup.
-	BASH_COMMIT="3160c0b89ce4f3934e791de94f9370b6cfc26ae5"
+	BASH_COMMIT="cf8a2518c8b94f75b330d398f5daa0ee21417e1b"
 	SRC_URI="https://git.savannah.gnu.org/cgit/bash.git/snapshot/bash-${BASH_COMMIT}.tar.gz -> ${P}-${BASH_COMMIT}.tar.gz"
 	S=${WORKDIR}/${PN}-${BASH_COMMIT}
 else
@@ -198,6 +198,7 @@ src_configure() {
 	append-cppflags \
 		-DDEFAULT_PATH_VALUE=\'\""${EPREFIX}"/usr/local/sbin:"${EPREFIX}"/usr/local/bin:"${EPREFIX}"/usr/sbin:"${EPREFIX}"/usr/bin:"${EPREFIX}"/sbin:"${EPREFIX}"/bin\"\' \
 		-DSTANDARD_UTILS_PATH=\'\""${EPREFIX}"/bin:"${EPREFIX}"/usr/bin:"${EPREFIX}"/sbin:"${EPREFIX}"/usr/sbin\"\' \
+		-DDEFAULT_LOADABLE_BUILTINS_PATH=\'\""${EPREFIX}"/usr/local/$(get_libdir)/bash:"${EPREFIX}"/usr/$(get_libdir)/bash\"\' \
 		-DSYS_BASHRC=\'\""${EPREFIX}"/etc/bash/bashrc\"\' \
 		-DSYS_BASH_LOGOUT=\'\""${EPREFIX}"/etc/bash/bash_logout\"\' \
 		-DNON_INTERACTIVE_LOGIN_SHELLS \
