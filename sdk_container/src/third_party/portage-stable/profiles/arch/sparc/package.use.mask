@@ -397,8 +397,10 @@ dev-cpp/eigen test
 # Sam James <sam@gentoo.org> (2021-04-27)
 # Deps not yet tested/keyworded.
 llvm-core/clang-common default-compiler-rt default-lld
-llvm-core/clang-runtime compiler-rt default-compiler-rt default-lld
+llvm-core/clang-linker-config default-lld
+llvm-runtimes/clang-runtime compiler-rt default-compiler-rt default-lld
 llvm-core/llvm z3
+llvm-runtimes/clang-rtlib-config default-compiler-rt
 
 # Sam James <sam@gentoo.org> (2021-03-19)
 # On sparc, we have to force sys-apps/grep[libsigsegv]
@@ -573,11 +575,6 @@ dev-lang/spidermonkey jit
 # No ffmpeg keywords on sparc
 media-sound/dir2ogg aac wma
 
-# Sergei Trofimovich <slyfox@gentoo.org> (2018-08-30)
-# dev-games/openscenegraph is a heavy unkeyworded dependency.
-# Skip keywording it for now.
-app-office/scribus osg
-
 # Sergei Trofimovich <slyfox@gentoo.org> (2018-05-08)
 # Mask USE=games to avoid unkeyworded games-util/qstat.
 net-analyzer/monitoring-plugins game
@@ -623,7 +620,7 @@ xfce-base/xfwm4 xpresent
 
 # Michał Górny <mgorny@gentoo.org> (2017-03-23)
 # Most of clang runtimes are not supported here
-llvm-core/clang-runtime openmp sanitize
+llvm-runtimes/clang-runtime openmp sanitize
 
 # Pacho Ramos <pacho@gentoo.org> (2017-02-04)
 # Missing keywords, bug #599572
@@ -754,7 +751,6 @@ x11-misc/colord argyllcms extra-print-profiles
 # MySQL 5.5 wants systemtap, tcmalloc & jemalloc
 >=dev-db/mysql-5.5 jemalloc
 >=dev-db/mariadb-5.5 systemtap jemalloc
->=dev-db/percona-server-5.5 jemalloc
 
 # Diego Elio Pettenò <flameeyes@gentoo.org> (2012-06-24)
 # Requires libpcre with jit
