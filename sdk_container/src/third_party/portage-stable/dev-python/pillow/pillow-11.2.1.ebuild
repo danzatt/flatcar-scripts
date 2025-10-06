@@ -19,7 +19,7 @@ TEST_IMAGE_COMMIT="716bdc4adaf97601e5b9a31c9be25f8975381ee1"
 
 DESCRIPTION="Python Imaging Library (fork)"
 HOMEPAGE="
-	https://python-pillow.org/
+	https://python-pillow.github.io/
 	https://github.com/python-pillow/Pillow/
 	https://pypi.org/project/pillow/
 "
@@ -35,7 +35,7 @@ S=${WORKDIR}/${MY_P}
 
 LICENSE="HPND"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~x64-macos"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~x64-macos"
 IUSE="avif examples imagequant +jpeg jpeg2k lcms test tiff tk truetype webp xcb zlib"
 REQUIRED_USE="test? ( jpeg jpeg2k lcms tiff truetype )"
 RESTRICT="!test? ( test )"
