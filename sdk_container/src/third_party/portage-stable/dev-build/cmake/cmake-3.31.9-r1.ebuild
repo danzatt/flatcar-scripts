@@ -47,7 +47,7 @@ else
 			https://github.com/Kitware/CMake/releases/download/v$(ver_cut 1-3)/${MY_P}-SHA-256.txt.asc
 		)"
 
-		KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ~ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+		KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
 
 		BDEPEND="verify-sig? ( >=sec-keys/openpgp-keys-bradking-20240902 )"
 	fi
@@ -62,12 +62,13 @@ SLOT="0"
 IUSE="${CMAKE_DOCS_USEFLAG} dap gui ncurses test"
 RESTRICT="!test? ( test )"
 
+# >= 1.51.0-r1 for ppc32 workaround (bug #941738)
 RDEPEND="
 	>=app-arch/libarchive-3.3.3:=
 	app-crypt/rhash:0=
 	>=dev-libs/expat-2.0.1
 	>=dev-libs/jsoncpp-1.9.2-r2:0=
-	>=dev-libs/libuv-1.10.0:=
+	>=dev-libs/libuv-1.51.0-r1:=
 	>=net-misc/curl-7.21.5[ssl]
 	sys-libs/zlib
 	virtual/pkgconfig
@@ -91,13 +92,14 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-3.27.0_rc1-0001-Don-t-use-.so-for-modules-on-darwin-macos.-Use-.bund.patch
 	"${FILESDIR}"/${PN}-3.27.0_rc1-0002-Set-some-proper-paths-to-make-cmake-find-our-tools.patch
 	# Misc
-	"${FILESDIR}"/${PN}-3.27.0_rc1-0003-Prefer-pkgconfig-in-FindBLAS.patch
+	"${FILESDIR}"/${PN}-3.31.6-Prefer-pkgconfig-in-FindBLAS.patch
 	"${FILESDIR}"/${PN}-3.27.0_rc1-0004-Ensure-that-the-correct-version-of-Qt-is-always-used.patch
 	"${FILESDIR}"/${PN}-3.27.0_rc1-0005-Respect-Gentoo-s-Python-eclasses.patch
 	# Cuda
-	"${FILESDIR}/${PN}-3.30.3-cudahostld.patch"
+	"${FILESDIR}"/${PN}-3.30.3-cudahostld.patch
 
 	# Upstream fixes (can usually be removed with a version bump)
+	"${FILESDIR}"/${PN}-3.31.7-hdf5.patch
 )
 
 cmake_src_bootstrap() {
@@ -124,7 +126,7 @@ pkg_pretend() {
 		local file
 		local errant_files=()
 
-		# See bug #599684 and  bug #753581 (at least)
+		# See bug #599684 and bug #753581 (at least)
 		for file in /etc/arch-release /etc/redhat-release /etc/debian_version ; do
 			if [[ -e ${file} ]]; then
 				errant_files+=( "${file}" )
