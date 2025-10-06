@@ -18,22 +18,22 @@ SRC_URI="
 "
 # ^ tarball also includes test-crates' Cargo.lock(s) crates for tests
 
-# rustls+ring is unused, so openssl license can be skipped
 LICENSE="|| ( Apache-2.0 MIT ) doc? ( CC-BY-4.0 OFL-1.1 )"
 LICENSE+="
 	0BSD Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD Boost-1.0 MIT
 	MPL-2.0 Unicode-3.0 Unicode-DFS-2016
 " # crates
 SLOT="0"
-KEYWORDS="amd64 arm arm64 ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 IUSE="doc +ssl test"
 RESTRICT="!test? ( test )"
 
-DEPEND="
+RDEPEND="
 	app-arch/xz-utils
+	app-arch/zstd:=
 	ssl? ( dev-libs/openssl:= )
 "
-RDEPEND="${DEPEND}"
+DEPEND="${RDEPEND}"
 BDEPEND="
 	virtual/pkgconfig
 	doc? ( app-text/mdbook )
@@ -83,6 +83,7 @@ src_prepare() {
 
 src_configure() {
 	export OPENSSL_NO_VENDOR=1
+	export ZSTD_SYS_USE_PKG_CONFIG=1
 
 	# https://github.com/rust-lang/stacker/issues/79
 	use s390 && ! is-flagq '-march=*' &&
@@ -134,16 +135,13 @@ python_test() {
 		--skip develop_pyo3_ffi_pure::case_2
 		# compliance test using zig requires an old libc to pass (bug #946967)
 		--skip integration_pyo3_mixed_py_subdir
-		# fails on sparc since rust-1.74 (bug #934573), skip for now given
-		# should not affect the pep517 backend which is all we need on sparc
-		$(usev sparc '--skip build_context::test::test_macosx_deployment_target')
 	)
 
 	cargo_src_test -- "${skip[@]}"
 }
 
 python_install_all() {
-	cargo_src_install
+	dobin "$(cargo_target_dir)"/maturin
 
 	dodoc Changelog.md README.md
 	use doc && dodoc -r guide/html
