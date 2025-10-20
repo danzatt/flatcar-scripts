@@ -5,7 +5,7 @@ EAPI=8
 
 inherit cmake
 
-COMMIT="de3cc64a55b2a67d672b7ca899a8675182d1c989"
+COMMIT="11a2a38aa79daf573c2a16353dd9121536ac9fc1"
 MY_P="azure-sdk-for-cpp-${COMMIT}"
 DESCRIPTION="Azure SDK for C++"
 HOMEPAGE="https://azure.github.io/azure-sdk-for-cpp/"
@@ -13,7 +13,7 @@ SRC_URI="https://github.com/Azure/azure-sdk-for-cpp/archive/${COMMIT}.tar.gz -> 
 S="${WORKDIR}/${MY_P}/sdk/core/${PN}"
 LICENSE="MIT"
 SLOT="0/${PV}"
-KEYWORDS="~amd64"
+KEYWORDS="amd64"
 IUSE="doc"
 RESTRICT="test" # Too many online tests.
 
