@@ -44,7 +44,7 @@ elif (( PLEVEL < 0 )) && [[ ${PV} == *_p* ]] ; then
 	# the alpha, and the next pre-release is usually quite far away.
 	#
 	# i.e. if it's worth packaging the alpha, it's worth packaging a followup.
-	READLINE_COMMIT="7cf2d923617659d216db3210f6247740f7dde1d8"
+	READLINE_COMMIT="a0ceb95d8c5d730ac9461e4abaea402e862ac907"
 	SRC_URI="https://git.savannah.gnu.org/cgit/readline.git/snapshot/readline-${READLINE_COMMIT}.tar.gz -> ${P}-${READLINE_COMMIT}.tar.gz"
 	S=${WORKDIR}/${PN}-${READLINE_COMMIT}
 else
@@ -93,8 +93,6 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-5.0-no_rpath.patch
 	"${FILESDIR}"/${PN}-7.0-headers.patch
 	"${FILESDIR}"/${PN}-8.0-headers.patch
-	"${FILESDIR}"/${PN}-8.3-iwd-crash.patch
-	"${FILESDIR}"/${PN}-8.3-event_hook.patch
 )
 
 src_unpack() {
