@@ -10,7 +10,7 @@ DESCRIPTION="Pipe Viewer: a tool for monitoring the progress of data through a p
 HOMEPAGE="https://ivarch.com/p/pv https://codeberg.org/ivarch/pv"
 
 if [[ ${PV} == 9999 ]] ; then
-	EGIT_REPO_URI="https://codeberg.org/a-j-wood/pv"
+	EGIT_REPO_URI="https://codeberg.org/ivarch/pv"
 	inherit autotools git-r3
 else
 	SRC_URI="
@@ -18,7 +18,7 @@ else
 		verify-sig? ( https://ivarch.com/s/${P}.tar.gz.txt -> ${P}.tar.gz.asc )
 	"
 
-	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ~ppc ppc64 ~riscv ~sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos"
 fi
 
 LICENSE="GPL-3+"
