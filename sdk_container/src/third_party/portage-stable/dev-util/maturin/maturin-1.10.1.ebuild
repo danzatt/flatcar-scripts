@@ -6,7 +6,7 @@ EAPI=8
 DISTUTILS_USE_PEP517=setuptools
 DISTUTILS_UPSTREAM_PEP517=standalone
 PYTHON_COMPAT=( pypy3_11 python3_{11..14} )
-RUST_MIN_VER=1.75.0
+RUST_MIN_VER=1.83.0
 inherit cargo distutils-r1 flag-o-matic shell-completion toolchain-funcs
 
 DESCRIPTION="Build and publish crates with pyo3, rust-cpython and cffi bindings"
@@ -20,11 +20,11 @@ SRC_URI="
 
 LICENSE="|| ( Apache-2.0 MIT ) doc? ( CC-BY-4.0 OFL-1.1 )"
 LICENSE+="
-	0BSD Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD Boost-1.0 MIT
-	MPL-2.0 Unicode-3.0 Unicode-DFS-2016
+	0BSD Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD MIT MPL-2.0
+	Unicode-3.0 ZLIB BZIP2
 " # crates
 SLOT="0"
-KEYWORDS="amd64 arm arm64 ~loong ~mips ~ppc ppc64 ~riscv ~s390 ~sparc x86"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 IUSE="doc +ssl test"
 RESTRICT="!test? ( test )"
 
@@ -135,13 +135,16 @@ python_test() {
 		--skip develop_pyo3_ffi_pure::case_2
 		# compliance test using zig requires an old libc to pass (bug #946967)
 		--skip integration_pyo3_mixed_py_subdir
+		# these currently attempt to install tomli regardless of python version
+		--skip pep517_default_profile
+		--skip pep517_editable_profile
 	)
 
 	cargo_src_test -- "${skip[@]}"
 }
 
 python_install_all() {
-	cargo_src_install
+	dobin "$(cargo_target_dir)"/maturin
 
 	dodoc Changelog.md README.md
 	use doc && dodoc -r guide/html
