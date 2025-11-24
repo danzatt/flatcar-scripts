@@ -22,7 +22,7 @@ HOMEPAGE="https://github.com/dracut-ng/dracut-ng/wiki"
 
 LICENSE="GPL-2"
 SLOT="0"
-IUSE="+dracut-cpio selinux test"
+IUSE="dracut-cpio selinux test"
 RESTRICT="test"
 PROPERTIES="test? ( test_privileged test_network )"
 
@@ -109,6 +109,8 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-108-elf-parsing-fixes.patch
 	# https://github.com/dracut-ng/dracut-ng/pull/1122#issuecomment-3192110686
 	"${FILESDIR}"/${PN}-108-disable-ukify-magic.patch
+	# https://github.com/dracut-ng/dracut-ng/pull/1562
+	"${FILESDIR}"/${PN}-108-hostonly_cmdline-default-yes.patch
 )
 
 pkg_setup() {
@@ -124,7 +126,7 @@ src_configure() {
 		--disable-dracut-cpio
 	)
 
-	if ! has_version dev-ruby/asciidoctor; then
+	if ! has_version -b dev-ruby/asciidoctor; then
 		myconf+=( --disable-asciidoctor )
 	fi
 
@@ -212,7 +214,7 @@ pkg_postinst() {
 	optfeature "Decrypt devices encrypted with cryptsetup/LUKS" \
 		"sys-fs/cryptsetup[-static-libs]"
 	optfeature "Support for GPG-encrypted keys for crypt module" \
-		app-crypt/gnupg
+		"app-alternatives/gpg[reference]" "app-alternatives/gpg[freepg(-)]"
 	optfeature \
 		"Allows use of dash instead of default bash (on your own risk)" \
 		app-shells/dash
