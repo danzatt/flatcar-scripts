@@ -18,7 +18,7 @@ KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv 
 IUSE="debug lz4 lzma lzo xattr zstd"
 
 DEPEND="
-	sys-libs/zlib
+	virtual/zlib:=
 	lz4? ( app-arch/lz4 )
 	lzma? ( app-arch/xz-utils )
 	lzo? ( dev-libs/lzo )
