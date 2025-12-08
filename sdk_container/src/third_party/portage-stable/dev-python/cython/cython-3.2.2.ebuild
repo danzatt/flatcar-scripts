@@ -37,7 +37,6 @@ BDEPEND="
 "
 
 PATCHES=(
-	"${FILESDIR}/${PN}-0.29.22-spawn-multiprocessing.patch"
 	"${FILESDIR}/${PN}-0.29.23-pythran-parallel-install.patch"
 )
 
@@ -106,7 +105,8 @@ python_test() {
 			--exclude 'run.test_patma*'
 			# Slight output difference (missing '<')
 			--exclude 'run.cpp_exception_ptr_just_handler'
-
+			# No freethreading here
+			--exclude 'run.freethreaded_list_indexing_stress_test'
 		)
 	fi
 
