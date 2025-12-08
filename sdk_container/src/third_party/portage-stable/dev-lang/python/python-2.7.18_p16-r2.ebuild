@@ -27,7 +27,7 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="PSF-2"
 SLOT="${PYVER}"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="
 	berkdb bluetooth examples gdbm +ncurses +readline +sqlite +ssl
 	valgrind wininst +xml
@@ -43,7 +43,7 @@ RDEPEND="
 	app-arch/bzip2:=
 	app-misc/mime-types
 	dev-libs/libffi:=
-	>=sys-libs/zlib-1.1.3:=
+	>=virtual/zlib-1.1.3:=
 	virtual/libcrypt:=
 	virtual/libintl
 	berkdb? ( || (
