@@ -12,7 +12,7 @@ TMPFILES_OPTIONAL=1
 EMULTILIB_PKG="true"
 
 # Gentoo patchset (ignored for live ebuilds)
-PATCH_VER=2
+PATCH_VER=9
 PATCH_DEV=dilfridge
 
 # gcc mulitilib bootstrap files version
@@ -38,10 +38,11 @@ inherit python-any-r1 prefix preserve-libs toolchain-funcs flag-o-matic gnuconfi
 DESCRIPTION="GNU libc C library"
 HOMEPAGE="https://www.gnu.org/software/libc/"
 
-if [[ ${PV} == *9999 ]]; then
+if [[ ${PV} == 9999* ]]; then
 	inherit git-r3
 else
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+	#KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+	KEYWORDS="~sparc"
 	SRC_URI="mirror://gnu/glibc/${P}.tar.xz"
 	SRC_URI+=" https://dev.gentoo.org/~${PATCH_DEV}/distfiles/${P}-patches-${PATCH_VER}.tar.xz"
 fi
@@ -51,7 +52,7 @@ SRC_URI+=" systemd? ( https://gitweb.gentoo.org/proj/toolchain/glibc-systemd.git
 
 LICENSE="LGPL-2.1+ BSD HPND ISC inner-net rc PCRE"
 SLOT="2.2"
-IUSE="audit caps cet compile-locales custom-cflags doc gd hash-sysv-compat headers-only +multiarch multilib multilib-bootstrap nscd perl profile selinux sframe +ssp stack-realign +static-libs suid systemd systemtap test vanilla"
+IUSE="audit caps cet compile-locales custom-cflags doc gd hash-sysv-compat headers-only +multiarch multilib multilib-bootstrap nscd perl profile selinux +ssp stack-realign +static-libs suid systemd systemtap test vanilla"
 
 # Here's how the cross-compile logic breaks down ...
 #  CTARGET - machine that will target the binaries
@@ -115,7 +116,6 @@ BDEPEND="
 		dev-lang/perl
 		sys-apps/texinfo
 	)
-	sframe? ( >=sys-devel/binutils-2.45 )
 	test? (
 		dev-lang/perl
 		>=net-dns/libidn2-2.3.0
@@ -351,7 +351,7 @@ setup_target_flags() {
 					[[ ${t} == "x86_64" ]] && t="x86-64"
 					filter-flags '-march=*'
 					# ugly, ugly, ugly.  ugly.
-					CFLAGS_x86=$(CFLAGS=${CFLAGS_x86} filter-flags '-march=*'; echo "${CFLAGS}")
+					CFLAGS_x86=$(CFLAGS=${CFLAGS_x86}; filter-flags '-march=*'; echo "${CFLAGS}")
 					export CFLAGS_x86="${CFLAGS_x86} -march=${t}"
 					einfo "Auto adding -march=${t} to CFLAGS_x86 #185404 (ABI=${ABI})"
 				fi
@@ -769,6 +769,11 @@ g_int_to_KV() {
 	echo ${major}.${minor}.${micro}
 }
 
+eend_KV() {
+	[[ $(g_KV_to_int $1) -ge $(g_KV_to_int $2) ]]
+	eend $?
+}
+
 get_kheader_version() {
 	printf '#include <linux/version.h>\nLINUX_VERSION_CODE\n' | \
 	$(tc-getCPP ${CTARGET}) -I "${ESYSROOT}$(alt_headers)" - | \
@@ -817,7 +822,7 @@ sanity_prechecks() {
 
 	# ABI-specific checks follow here. Hey, we have a lot more specific conditions that
 	# we test for...
-	if ! is_crosscompile ; then
+	if ! is_crosscompile && ! tc-is-cross-compiler ; then
 		if use amd64 && use multilib && [[ ${MERGE_TYPE} != "binary" ]] ; then
 			ebegin "Checking if the system can execute 32-bit binaries"
 			echo 'int main(){return 0;}' > "${T}/check-ia32-emulation.c"
@@ -862,13 +867,11 @@ sanity_prechecks() {
 			if ! is_crosscompile && ! tc-is-cross-compiler ; then
 				# Building fails on an non-supporting kernel
 				ebegin "Checking running kernel version (${run_kv} >= ${want_kv})"
-				if ! [[ $(g_KV_to_int ${run_kv}) -ge $(g_KV_to_int ${want_kv}) ]] ; then
-					eend 1
+				if ! eend_KV ${run_kv} ${want_kv} ; then
 					echo
 					eerror "You need a kernel of at least ${want_kv}!"
 					die "Kernel version too low!"
 				fi
-				eend 0
 			fi
 
 			# Do not run this check for pkg_pretend, just pkg_setup and friends (if we ever get used there).
@@ -879,13 +882,11 @@ sanity_prechecks() {
 			# but let's leave it as-is for now.
 			if [[ ${EBUILD_PHASE_FUNC} != pkg_pretend ]] ; then
 				ebegin "Checking linux-headers version (${build_kv} >= ${want_kv})"
-				if ! [[ $(g_KV_to_int ${build_kv}) -ge $(g_KV_to_int ${want_kv}) ]] ; then
-					eend 1
+				if ! eend_KV ${build_kv} ${want_kv} ; then
 					echo
 					eerror "You need linux-headers of at least ${want_kv}!"
 					die "linux-headers version too low!"
 				fi
-				eend 0
 			fi
 		fi
 	fi
@@ -931,7 +932,7 @@ src_unpack() {
 
 	use multilib-bootstrap && unpack gcc-multilib-bootstrap-${GCC_BOOTSTRAP_VER}.tar.xz
 
-	if [[ ${PV} == *9999 ]] ; then
+	if [[ ${PV} == 9999* ]] ; then
 		EGIT_REPO_URI="
 			https://anongit.gentoo.org/git/proj/toolchain/glibc-patches.git
 			https://github.com/gentoo/glibc-patches.git
@@ -945,13 +946,12 @@ src_unpack() {
 			https://gitlab.com/x86-glibc/glibc.git
 		"
 		EGIT_CHECKOUT_DIR=${S}
-		[[ ${PV} == *.*.9999 ]] && EGIT_BRANCH=release/${PV%.*}/master
 		git-r3_src_unpack
 	else
 		unpack ${P}.tar.xz
 
 		cd "${WORKDIR}" || die
-		unpack ${P}-patches-${PATCH_VER}.tar.xz
+		unpack glibc-${PV}-patches-${PATCH_VER}.tar.xz
 	fi
 
 	cd "${WORKDIR}" || die
@@ -1019,11 +1019,6 @@ glibc_do_configure() {
 
 	case ${ABI}-${CTARGET} in
 		amd64-x86_64-*|x32-x86_64-*-*-gnux32) myconf+=( $(use_enable cet) ) ;;
-		*) ;;
-	esac
-
-	case ${ABI}-${CTARGET} in
-		amd64-x86_64-*|arm64-aarch64-*) myconf+=( $(use_enable sframe) ) ;;
 		*) ;;
 	esac
 
@@ -1308,7 +1303,7 @@ glibc_src_test() {
 	# we give the tests a bit more time to avoid spurious
 	# bug reports on slow arches
 
-	SANDBOX_ON=0 LD_PRELOAD= TIMEOUTFACTOR=16 nonfatal emake ${myxfailparams} check
+	SANDBOX_ON=0 LD_PRELOAD= TIMEOUTFACTOR=16 emake ${myxfailparams} check
 }
 
 src_test() {
@@ -1316,15 +1311,14 @@ src_test() {
 		return
 	fi
 
-	# glibc_src_test uses nonfatal so that we can run tests for all ABIs
-	# and fail at the end instead.
 	foreach_abi glibc_src_test || die "tests failed"
 }
 
 # src_install
 
 run_locale_gen() {
-	local prefix=$1 user_config config
+	local fatal=$1 prefix=$2
+	local user_config action config stderr noun ret
 	local -a hasversion_opts localegen_args
 
 	if [[ ${EBUILD_PHASE_FUNC} == src_install ]]; then
@@ -1353,7 +1347,27 @@ run_locale_gen() {
 	fi
 
 	printf 'Executing: locale-gen %s\n' "${localegen_args[*]@Q}" >&2
-	locale-gen "${localegen_args[@]}"
+	{ stderr=$(locale-gen "${localegen_args[@]}" 2>&1 >&3); } 3>&1
+	ret=$?
+	action="ewarn"
+	if (( ret == 0 )); then
+		noun="warning"
+	else
+		noun="error"
+		if (( fatal )); then
+			action="die"
+		fi
+	fi
+	# Convey warnings/errors so that they can be reseen upon emerge exiting.
+	if [[ ${stderr} ]]; then
+		ewarn "locale-gen(8) issued the following ${noun}s:"
+		while read -r; do
+			ewarn "$REPLY"
+		done <<<"${stderr}"
+	fi
+	if (( ret != 0 )); then
+		"${action}" "locale-gen(8) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
+	fi
 }
 
 glibc_do_src_install() {
@@ -1568,8 +1582,8 @@ glibc_do_src_install() {
 	rm -f "${ED}"/etc/localtime
 
 	# Generate all locales if this is a native build as locale generation
-	if use compile-locales && ! is_crosscompile && ! run_locale_gen "${ED}"; then
-		die "locale-gen(1) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
+	if use compile-locales && ! is_crosscompile; then
+		run_locale_gen 1 "${ED}"
 	fi
 }
 
@@ -1719,8 +1733,8 @@ pkg_postinst() {
 		# window for the affected programs.
 		use loong && glibc_refresh_ldconfig
 
-		if ! use compile-locales && ! run_locale_gen "${EROOT}"; then
-			ewarn "locale-gen(1) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
+		if ! use compile-locales; then
+			run_locale_gen 0 "${EROOT}"
 		fi
 
 		# If fixincludes was/is active for a particular GCC slot, we
