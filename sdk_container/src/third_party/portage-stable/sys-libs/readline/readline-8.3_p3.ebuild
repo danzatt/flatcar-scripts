@@ -93,8 +93,6 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-5.0-no_rpath.patch
 	"${FILESDIR}"/${PN}-7.0-headers.patch
 	"${FILESDIR}"/${PN}-8.0-headers.patch
-	"${FILESDIR}"/${PN}-8.3-iwd-crash.patch
-	"${FILESDIR}"/${PN}-8.3-event_hook.patch
 )
 
 src_unpack() {
@@ -143,7 +141,7 @@ src_prepare() {
 	else
 		# Force ncurses linking, bug #71420.
 		# Use pkg-config to get the right values, bug #457558.
-		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs)
+		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs || die)
 	fi
 
 	sed -i \

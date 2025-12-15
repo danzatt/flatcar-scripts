@@ -44,7 +44,7 @@ elif (( PLEVEL < 0 )) && [[ ${PV} == *_p* ]] ; then
 	# the alpha, and the next pre-release is usually quite far away.
 	#
 	# i.e. if it's worth packaging the alpha, it's worth packaging a followup.
-	READLINE_COMMIT="488d7edc22894d30b6de7f2d4190bf7403f63ffd"
+	READLINE_COMMIT="a0ceb95d8c5d730ac9461e4abaea402e862ac907"
 	SRC_URI="https://git.savannah.gnu.org/cgit/readline.git/snapshot/readline-${READLINE_COMMIT}.tar.gz -> ${P}-${READLINE_COMMIT}.tar.gz"
 	S=${WORKDIR}/${PN}-${READLINE_COMMIT}
 else
@@ -141,7 +141,7 @@ src_prepare() {
 	else
 		# Force ncurses linking, bug #71420.
 		# Use pkg-config to get the right values, bug #457558.
-		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs)
+		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs || die)
 	fi
 
 	sed -i \
