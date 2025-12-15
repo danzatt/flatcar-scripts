@@ -1,8 +1,9 @@
 # Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=7
+EAPI=8
 
+# py3.14: bug #957070
 PYTHON_COMPAT=( pypy3_11 python3_{11..13} )
 PYTHON_REQ_USE='bzip2(+),threads(+)'
 TMPFILES_OPTIONAL=1
@@ -19,8 +20,8 @@ if [[ ${PV} == 9999 ]] ; then
 	"
 	inherit git-r3
 else
-	SRC_URI="https://gitweb.gentoo.org/proj/portage.git/snapshot/${P}.tar.bz2"
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+	SRC_URI="https://gitweb-cdn-origin.gentoo.org/proj/portage.git/snapshot/${P}.tar.bz2"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 LICENSE="GPL-2"
@@ -67,7 +68,7 @@ RDEPEND="
 		>=sec-keys/openpgp-keys-gentoo-release-20240703
 		>=sys-apps/sed-4.0.5
 		rsync-verify? (
-			>=app-crypt/gnupg-2.2.4-r2[ssl(-)]
+			app-alternatives/gpg[ssl(-)]
 			>=app-portage/gemato-14.5[${PYTHON_USEDEP}]
 		)
 	)
@@ -90,7 +91,7 @@ PDEPEND="
 "
 
 PATCHES=(
-	"${FILESDIR}"/${PN}-3.0.67-nicer-depend-phase-output.patch
+	"${FILESDIR}"/0001-emerge-webrsync-restore-the-missing-option-arg-for-c.patch
 )
 
 pkg_pretend() {
