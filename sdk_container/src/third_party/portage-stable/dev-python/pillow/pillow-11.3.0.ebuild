@@ -19,7 +19,7 @@ TEST_IMAGE_COMMIT="7077675d2cda485d63de4aefe0fefbf6f655c5a0"
 
 DESCRIPTION="Python Imaging Library (fork)"
 HOMEPAGE="
-	https://python-pillow.org/
+	https://python-pillow.github.io/
 	https://github.com/python-pillow/Pillow/
 	https://pypi.org/project/pillow/
 "
@@ -53,7 +53,7 @@ DEPEND="
 	)
 	webp? ( media-libs/libwebp:= )
 	xcb? ( x11-libs/libxcb )
-	zlib? ( sys-libs/zlib:= )
+	zlib? ( virtual/zlib:= )
 "
 RDEPEND="
 	${DEPEND}
