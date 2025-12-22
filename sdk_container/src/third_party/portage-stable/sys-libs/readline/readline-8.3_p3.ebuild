@@ -78,7 +78,7 @@ fi
 LICENSE="GPL-3+"
 SLOT="0/8"  # subslot matches SONAME major
 if (( PLEVEL >= 0 )); then
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 IUSE="static-libs +unicode utils"
 
@@ -93,8 +93,6 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-5.0-no_rpath.patch
 	"${FILESDIR}"/${PN}-7.0-headers.patch
 	"${FILESDIR}"/${PN}-8.0-headers.patch
-	"${FILESDIR}"/${PN}-8.3-iwd-crash.patch
-	"${FILESDIR}"/${PN}-8.3-event_hook.patch
 )
 
 src_unpack() {
@@ -143,7 +141,7 @@ src_prepare() {
 	else
 		# Force ncurses linking, bug #71420.
 		# Use pkg-config to get the right values, bug #457558.
-		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs)
+		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs || die)
 	fi
 
 	sed -i \
