@@ -1,4 +1,4 @@
-# Copyright 2023-2025 Gentoo Authors
+# Copyright 2023-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -12,7 +12,7 @@ if [[ ${PV} == 9999 ]] ; then
 else
 	SRC_URI="https://gitweb.gentoo.org/proj/locale-gen.git/snapshot/${P}.tar.bz2"
 
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 LICENSE="GPL-2"
@@ -31,6 +31,8 @@ src_prepare() {
 	# EPREFIX is readonly.
 	local -x MY_EPREFIX=${EPREFIX}
 
+	eapply "${FILESDIR}/${PV}-suppress-bash-setlocale-warnings.patch"
+	eapply "${FILESDIR}/${PV}-avoid-chcon-execution-if-missing.patch"
 	eapply_user
 
 	perl -pi -e '$f //= ($. == 1 && s/^#!\h*\K/$ENV{MY_EPREFIX}/); END { exit !$f }' "${PN}" \
@@ -47,11 +49,25 @@ src_install() {
 		# See the locale.gen(5) and locale-gen(8) man pages for more details.
 
 		EOF
-		# Run the interpreter by name so as not to have to prefixify mkconfig.
-		perl mkconfig "${EROOT}"
+		if [[ -e ${EROOT}/usr/share/i18n/SUPPORTED ]]; then
+			# Run the interpreter by name so as not to have to prefixify.
+			perl mkconfig "${EROOT}"
+		else
+			ewarn "Skipping the incorporation of locale.gen examples because the SUPPORTED file is absent"
+		fi
 	} | newins - locale.gen
 	if (( PIPESTATUS[0] || PIPESTATUS[1] )); then
 		die "Failed to generate and/or install locale.gen"
 	fi
 	keepdir /usr/lib/locale
+}
+
+pkg_postinst() {
+	while read -r; do ewarn "${REPLY}"; done <<-'EOF'
+	As of version 3.9, locale-gen(8) only supports locale/charmap pairs that are
+	officially supported by glibc itself. For most users, there should be no
+	impact. Nevertheless, if running locale-gen(8) raises errors regarding
+	unsupported combinations, it will be necessary to modify its config file.
+	The locale.gen(5) man page explains how to determine which are supported.
+	EOF
 }
