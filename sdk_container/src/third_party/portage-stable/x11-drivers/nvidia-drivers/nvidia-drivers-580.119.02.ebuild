@@ -3,21 +3,22 @@
 
 EAPI=8
 
+# note: while this 580.119.02 version is not as broken as 580.105.08
+# was (no need to mask), it still seem to be affected by notable
+# regressions compared to 580.95.05 and it should not be considered
+# for stable (e.g. https://forums.developer.nvidia.com/t/355216)
+
 MODULES_OPTIONAL_IUSE=+modules
 inherit desktop dot-a eapi9-pipestatus flag-o-matic linux-mod-r1
 inherit readme.gentoo-r1 systemd toolchain-funcs unpacker user-info
 
-MODULES_KERNEL_MAX=6.16
+MODULES_KERNEL_MAX=6.18
 NV_URI="https://download.nvidia.com/XFree86/"
-# x86-64 .run was missing from the usual mirror at bump time, while
-# aarch64's is missing from this one.. so fetch from different ones
-# for now and drop this next bump
-[[ ${PV} == 575.64.05 ]] && NV_URI_TMP="https://us.download.nvidia.com/XFree86/"
 
 DESCRIPTION="NVIDIA Accelerated Graphics Driver"
 HOMEPAGE="https://www.nvidia.com/"
 SRC_URI="
-	amd64? ( ${NV_URI_TMP}Linux-x86_64/${PV}/NVIDIA-Linux-x86_64-${PV}.run )
+	amd64? ( ${NV_URI}Linux-x86_64/${PV}/NVIDIA-Linux-x86_64-${PV}.run )
 	arm64? ( ${NV_URI}Linux-aarch64/${PV}/NVIDIA-Linux-aarch64-${PV}.run )
 	$(printf "${NV_URI}%s/%s-${PV}.tar.bz2 " \
 		nvidia-{installer,modprobe,persistenced,settings,xconfig}{,})
@@ -68,7 +69,10 @@ RDEPEND="
 	powerd? ( sys-apps/dbus[abi_x86_32(-)?] )
 	wayland? (
 		>=gui-libs/egl-gbm-1.1.1-r2[abi_x86_32(-)?]
-		>=gui-libs/egl-wayland-1.1.13.1[abi_x86_32(-)?]
+		|| (
+			>=gui-libs/egl-wayland-1.1.13.1[abi_x86_32(-)?]
+			gui-libs/egl-wayland2[abi_x86_32(-)?]
+		)
 		X? ( gui-libs/egl-x11[abi_x86_32(-)?] )
 	)
 "
@@ -144,7 +148,8 @@ pkg_setup() {
 	be ignored, but note that is due to change in the future."
 	local ERROR_MMU_NOTIFIER="CONFIG_MMU_NOTIFIER: is not set but needed to build with USE=kernel-open.
 	Cannot be directly selected in the kernel's menuconfig, and may need
-	selection of another option that requires it such as CONFIG_KVM."
+	selection of another option that requires it such as CONFIG_AMD_IOMMU=y,
+	or DRM_I915=m (among others, consult the kernel config's help)."
 	local ERROR_PREEMPT_RT="CONFIG_PREEMPT_RT: is set but is unsupported by NVIDIA upstream and
 	will fail to build unless the env var IGNORE_PREEMPT_RT_PRESENCE=1 is
 	set. Please do not report issues if run into e.g. kernel panics while
@@ -542,7 +547,7 @@ pkg_postinst() {
 
 	if [[ -r /proc/driver/nvidia/version &&
 		$(</proc/driver/nvidia/version) != *"  ${PV}  "* ]]; then
-		ewarn "Currently loaded NVIDIA modules do not match the newly installed"
+		ewarn "\nCurrently loaded NVIDIA modules do not match the newly installed"
 		ewarn "libraries and may prevent launching GPU-accelerated applications."
 		if use modules; then
 			ewarn "Easiest way to fix this is normally to reboot. If still run into issues"
@@ -553,16 +558,14 @@ pkg_postinst() {
 	fi
 
 	if [[ $(</proc/cmdline) == *slub_debug=[!-]* ]]; then
-		ewarn "Detected that the current kernel command line is using 'slub_debug=',"
+		ewarn "\nDetected that the current kernel command line is using 'slub_debug=',"
 		ewarn "this may lead to system instability/freezes with this version of"
 		ewarn "${PN}. Bug: https://bugs.gentoo.org/796329"
 	fi
 
 	if [[ -v NV_LEGACY_MASK ]]; then
-		ewarn
-		ewarn "***WARNING***"
-		ewarn
-		ewarn "You are installing a version of ${PN} known not to work"
+		ewarn "\n***WARNING***"
+		ewarn "\nYou are installing a version of ${PN} known not to work"
 		ewarn "with a GPU of the current system. If unwanted, add the mask:"
 		if [[ -d ${EROOT}/etc/portage/package.mask ]]; then
 			ewarn "  echo '${NV_LEGACY_MASK}' > ${EROOT}/etc/portage/package.mask/${PN}"
@@ -576,15 +579,13 @@ pkg_postinst() {
 	fi
 
 	if use kernel-open && [[ ! -v NV_HAD_KERNEL_OPEN ]]; then
-		ewarn
-		ewarn "Open source variant of ${PN} was selected, note that it requires"
+		ewarn "\nOpen source variant of ${PN} was selected, note that it requires"
 		ewarn "Turing/Ampere+ GPUs (aka GTX 1650+). Try disabling if run into issues."
 		ewarn "Also see: ${EROOT}/usr/share/doc/${PF}/html/kernel_open.html"
 	fi
 
 	if use wayland && use modules && [[ ! -v NV_HAD_WAYLAND ]]; then
-		elog
-		elog "Note that with USE=wayland, nvidia-drm.modeset=1 will be enabled"
+		elog "\nNote that with USE=wayland, nvidia-drm.modeset=1 will be enabled"
 		elog "in '${EROOT}/etc/modprobe.d/nvidia.conf'. *If* experience issues,"
 		elog "either disable wayland or edit nvidia.conf."
 	fi
