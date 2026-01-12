@@ -3,7 +3,7 @@
 
 EAPI=8
 
-# TODO: meson
+# TODO: meson (not just yet as of 2.8.0, see https://gitlab.com/cryptsetup/cryptsetup/-/issues/949#note_2585304492)
 inherit linux-info tmpfiles
 
 DESCRIPTION="Tool to setup encrypted devices with dm-crypt"
@@ -14,7 +14,7 @@ S="${WORKDIR}"/${P/_/-}
 LICENSE="GPL-2+"
 SLOT="0/12" # libcryptsetup.so version
 if [[ ${PV} != *_rc* ]] ; then
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 CRYPTO_BACKENDS="gcrypt kernel nettle +openssl"
@@ -44,7 +44,7 @@ LIB_DEPEND="
 	openssl? ( dev-libs/openssl:0=[static-libs(+)] )
 	pwquality? ( dev-libs/libpwquality[static-libs(+)] )
 	passwdqc? ( sys-auth/passwdqc )
-	ssh? ( net-libs/libssh[static-libs(+)] )
+	ssh? ( net-libs/libssh[static-libs(+)] net-libs/libssh[sftp(+)] )
 	sys-fs/lvm2[static-libs(+)]
 "
 # We have to always depend on ${LIB_DEPEND} rather than put behind
@@ -64,8 +64,6 @@ BDEPEND="
 	virtual/pkgconfig
 	test? ( app-editors/vim-core )
 "
-
-PATCHES=( "${FILESDIR}"/${P}-compat-test-passwdqc.patch )
 
 pkg_setup() {
 	local CONFIG_CHECK="~DM_CRYPT ~CRYPTO ~CRYPTO_CBC ~CRYPTO_SHA256"
