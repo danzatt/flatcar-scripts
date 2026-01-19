@@ -1,4 +1,4 @@
-# Copyright 2023-2025 Gentoo Authors
+# Copyright 2023-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -47,11 +47,24 @@ src_install() {
 		# See the locale.gen(5) and locale-gen(8) man pages for more details.
 
 		EOF
-		# Run the interpreter by name so as not to have to prefixify mkconfig.
-		perl mkconfig "${EROOT}"
+		if [[ -e ${EROOT}/usr/share/i18n/SUPPORTED ]]; then
+			# Run the interpreter by name so as not to have to prefixify.
+			perl mkconfig "${EROOT}"
+		else
+			ewarn "Skipping the incorporation of locale.gen examples because the SUPPORTED file is absent"
+		fi
 	} | newins - locale.gen
 	if (( PIPESTATUS[0] || PIPESTATUS[1] )); then
 		die "Failed to generate and/or install locale.gen"
 	fi
 	keepdir /usr/lib/locale
+}
+
+pkg_postinst() {
+	while read -r; do ewarn "${REPLY}"; done <<-'EOF'
+	As of version 3.10, the locale.gen(5) config file grammar has been
+	simplified. For instance, "en_US.UTF-8 UTF-8" may instead be written as
+	"en_US UTF-8", or even "en_US". The grammar remains backward compatible with
+	version 3.9, so there is no requirement to update the /etc/locale.gen file.
+	EOF
 }
