@@ -1,17 +1,17 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 MODULES_OPTIONAL_IUSE=+modules
-inherit desktop dot-a eapi9-pipestatus eapi9-ver flag-o-matic linux-mod-r1
+inherit desktop dot-a eapi9-pipestatus flag-o-matic linux-mod-r1
 inherit readme.gentoo-r1 systemd toolchain-funcs unpacker user-info
 
-MODULES_KERNEL_MAX=6.14
-NV_PIN=570.169
+MODULES_KERNEL_MAX=6.18
+NV_PIN=580.126.09
 
 DESCRIPTION="NVIDIA Accelerated Graphics Driver"
-HOMEPAGE="https://developer.nvidia.com/vulkan-driver"
+HOMEPAGE="https://developer.nvidia.com/vulkan-driver/"
 SRC_URI="
 	https://developer.nvidia.com/downloads/vulkan-beta-${PV//.}-linux
 		-> NVIDIA-Linux-x86_64-${PV}.run
@@ -23,13 +23,13 @@ SRC_URI="
 # nvidia-installer is unused but here for GPL-2's "distribute sources"
 S=${WORKDIR}
 
-LICENSE="NVIDIA-2023 Apache-2.0 BSD BSD-2 GPL-2 MIT ZLIB curl openssl"
+LICENSE="
+	NVIDIA-2025 Apache-2.0 Boost-1.0 BSD BSD-2 GPL-2 MIT ZLIB
+	curl openssl public-domain
+"
 SLOT="0/vulkan"
 KEYWORDS="-* ~amd64"
-# note: kernel-open is an upstream default in >=560 if all GPUs on the system
-# support it but, since no automagic here, keeping it off for the wider support
 IUSE="+X abi_x86_32 abi_x86_64 kernel-open persistenced powerd +static-libs +tools wayland"
-REQUIRED_USE="kernel-open? ( modules )"
 
 COMMON_DEPEND="
 	acct-group/video
@@ -64,7 +64,10 @@ RDEPEND="
 	powerd? ( sys-apps/dbus[abi_x86_32(-)?] )
 	wayland? (
 		>=gui-libs/egl-gbm-1.1.1-r2[abi_x86_32(-)?]
-		>=gui-libs/egl-wayland-1.1.13.1[abi_x86_32(-)?]
+		|| (
+			>=gui-libs/egl-wayland-1.1.13.1[abi_x86_32(-)?]
+			gui-libs/egl-wayland2[abi_x86_32(-)?]
+		)
 		X? ( gui-libs/egl-x11[abi_x86_32(-)?] )
 	)
 "
@@ -86,6 +89,7 @@ DEPEND="
 	)
 "
 BDEPEND="
+	app-alternatives/awk
 	sys-devel/m4
 	virtual/pkgconfig
 "
@@ -139,7 +143,8 @@ pkg_setup() {
 	be ignored, but note that is due to change in the future."
 	local ERROR_MMU_NOTIFIER="CONFIG_MMU_NOTIFIER: is not set but needed to build with USE=kernel-open.
 	Cannot be directly selected in the kernel's menuconfig, and may need
-	selection of another option that requires it such as CONFIG_KVM."
+	selection of another option that requires it such as CONFIG_AMD_IOMMU=y,
+	or DRM_I915=m (among others, consult the kernel config's help)."
 	local ERROR_PREEMPT_RT="CONFIG_PREEMPT_RT: is set but is unsupported by NVIDIA upstream and
 	will fail to build unless the env var IGNORE_PREEMPT_RT_PRESENCE=1 is
 	set. Please do not report issues if run into e.g. kernel panics while
@@ -199,11 +204,6 @@ src_compile() {
 	if use modules; then
 		local o_cflags=${CFLAGS} o_cxxflags=${CXXFLAGS} o_ldflags=${LDFLAGS}
 
-		# conftest.sh is broken with c23 due to func() changing meaning,
-		# and then fails later due to ealier misdetections
-		# TODO: try without now and then + drop modargs' CC= (bug #944092)
-		KERNEL_CC+=" -std=gnu17"
-
 		local modlistargs=video:kernel
 		if use kernel-open; then
 			modlistargs+=-module-source:kernel-module-source/kernel-open
@@ -219,7 +219,6 @@ src_compile() {
 
 		local modlist=( nvidia{,-drm,-modeset,-peermem,-uvm}=${modlistargs} )
 		local modargs=(
-			CC="${KERNEL_CC}" # needed for above gnu17 workaround
 			IGNORE_CC_MISMATCH=yes NV_VERBOSE=1
 			SYSOUT="${KV_OUT_DIR}" SYSSRC="${KV_DIR}"
 
@@ -287,7 +286,7 @@ src_install() {
 	local skip_modules=(
 		$(usev !X "nvfbc vdpau xdriver")
 		$(usev !modules gsp)
-		$(usev !powerd powerd)
+		$(usev !powerd nvtopps)
 		installer nvpd # handled separately / built from source
 	)
 	local skip_types=(
@@ -522,7 +521,6 @@ pkg_preinst() {
 	sed -i "s/@VIDEOGID@/${g}/" "${ED}"/etc/modprobe.d/nvidia.conf || die
 
 	# try to find driver mismatches using temporary supported-gpus.json
-	# TODO?: automatically check "kernelopen" bit for USE=kernel-open compat
 	for g in $(grep -l 0x10de /sys/bus/pci/devices/*/vendor 2>/dev/null); do
 		g=$(grep -io "\"devid\":\"$(<${g%vendor}device)\"[^}]*branch\":\"[0-9]*" \
 			"${ED}"/usr/share/nvidia/supported-gpus.json 2>/dev/null)
@@ -544,7 +542,7 @@ pkg_postinst() {
 
 	if [[ -r /proc/driver/nvidia/version &&
 		$(</proc/driver/nvidia/version) != *"  ${PV}  "* ]]; then
-		ewarn "Currently loaded NVIDIA modules do not match the newly installed"
+		ewarn "\nCurrently loaded NVIDIA modules do not match the newly installed"
 		ewarn "libraries and may prevent launching GPU-accelerated applications."
 		if use modules; then
 			ewarn "Easiest way to fix this is normally to reboot. If still run into issues"
@@ -555,16 +553,14 @@ pkg_postinst() {
 	fi
 
 	if [[ $(</proc/cmdline) == *slub_debug=[!-]* ]]; then
-		ewarn "Detected that the current kernel command line is using 'slub_debug=',"
+		ewarn "\nDetected that the current kernel command line is using 'slub_debug=',"
 		ewarn "this may lead to system instability/freezes with this version of"
 		ewarn "${PN}. Bug: https://bugs.gentoo.org/796329"
 	fi
 
 	if [[ -v NV_LEGACY_MASK ]]; then
-		ewarn
-		ewarn "***WARNING***"
-		ewarn
-		ewarn "You are installing a version of ${PN} known not to work"
+		ewarn "\n***WARNING***"
+		ewarn "\nYou are installing a version of ${PN} known not to work"
 		ewarn "with a GPU of the current system. If unwanted, add the mask:"
 		if [[ -d ${EROOT}/etc/portage/package.mask ]]; then
 			ewarn "  echo '${NV_LEGACY_MASK}' > ${EROOT}/etc/portage/package.mask/${PN}"
@@ -577,27 +573,15 @@ pkg_postinst() {
 		ewarn "[2] https://wiki.gentoo.org/wiki/Nouveau"
 	fi
 
-	if use kernel-open && [[ ! -v NV_HAD_KERNEL_OPEN ]]; then
-		ewarn
-		ewarn "Open source variant of ${PN} was selected, note that it requires"
+	if use kernel-open && use modules && [[ ! -v NV_HAD_KERNEL_OPEN ]]; then
+		ewarn "\nOpen source variant of ${PN} was selected, note that it requires"
 		ewarn "Turing/Ampere+ GPUs (aka GTX 1650+). Try disabling if run into issues."
 		ewarn "Also see: ${EROOT}/usr/share/doc/${PF}/html/kernel_open.html"
 	fi
 
 	if use wayland && use modules && [[ ! -v NV_HAD_WAYLAND ]]; then
-		elog
-		elog "With USE=wayland, this version of ${PN} sets nvidia-drm.modeset=1"
-		elog "in '${EROOT}/etc/modprobe.d/nvidia.conf'. This feature is considered"
-		elog "experimental but is required for wayland."
-		elog
-		elog "If you experience issues, either disable wayland or edit nvidia.conf."
-		elog "Of note, may possibly cause issues with SLI and Reverse PRIME."
-	fi
-
-	if use !kernel-open && ver_replacing -lt 555; then
-		elog
-		elog "If using a Turing/Ampere+ GPU (aka GTX 1650+), note that >=nvidia-drivers-555"
-		elog "enables the use of the GSP firmware by default. *If* experience regressions,"
-		elog "please see '${EROOT}/etc/modprobe.d/nvidia.conf' to optionally disable."
+		elog "\nNote that with USE=wayland, nvidia-drm.modeset=1 will be enabled"
+		elog "in '${EROOT}/etc/modprobe.d/nvidia.conf'. *If* experience issues,"
+		elog "either disable wayland or edit nvidia.conf."
 	fi
 }
