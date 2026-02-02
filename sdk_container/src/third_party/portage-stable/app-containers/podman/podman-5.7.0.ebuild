@@ -3,7 +3,7 @@
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 
 inherit go-module python-any-r1 tmpfiles toolchain-funcs linux-info
 
@@ -17,7 +17,7 @@ else
 	SRC_URI="https://github.com/containers/podman/archive/v${PV/_rc/-rc}.tar.gz -> ${P}.tar.gz"
 	S="${WORKDIR}/${P/_rc/-rc}"
 	[[ ${PV} != *rc* ]] && \
-		KEYWORDS="~amd64 ~arm64 ~loong ~riscv"
+		KEYWORDS="amd64 arm64 ~loong ~riscv"
 fi
 
 # main pkg
@@ -69,7 +69,7 @@ src_prepare() {
 
 	# assure necessary files are present
 	local file
-	for file in apparmor_tag btrfs_installed_tag btrfs_tag systemd_tag; do
+	for file in apparmor_tag btrfs_installed_tag systemd_tag; do
 		[[ -f hack/"${file}".sh ]] || die
 	done
 
@@ -81,10 +81,6 @@ src_prepare() {
 		EOF
 	done
 
-	cat <<-EOF > hack/btrfs_tag.sh || die
-	#!/usr/bin/env bash
-	$(usex btrfs echo 'echo btrfs_noversion')
-	EOF
 	cat <<-EOF > hack/btrfs_installed_tag.sh || die
 	#!/usr/bin/env bash
 	$(usex btrfs echo 'echo exclude_graphdriver_btrfs')
