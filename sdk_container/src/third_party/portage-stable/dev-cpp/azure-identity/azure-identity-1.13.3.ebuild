@@ -1,11 +1,11 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 inherit cmake
 
-COMMIT="6aea93d0410f5bc3e3a58a8d492a3063cac3aced"
+COMMIT="1144e4ad18f63bc2084552e1b4fbf737c974261a"
 MY_P="azure-sdk-for-cpp-${COMMIT}"
 DESCRIPTION="Azure SDK for C++"
 HOMEPAGE="https://azure.github.io/azure-sdk-for-cpp/"
@@ -29,10 +29,6 @@ BDEPEND="
 	virtual/pkgconfig
 	doc? ( app-text/doxygen )
 "
-
-PATCHES=(
-	"${FILESDIR}"/${PN}-imds-double-slash.patch
-)
 
 src_configure() {
 	local mycmakeargs=(
