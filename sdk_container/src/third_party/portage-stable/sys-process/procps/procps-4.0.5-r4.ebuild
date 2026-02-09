@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -15,7 +15,7 @@ S="${WORKDIR}"/${PN}-ng-${PV}
 # See bug #913210
 LICENSE="GPL-2+ LGPL-2+ LGPL-2.1+"
 SLOT="0/1-ng"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 IUSE="elogind +kill modern-top +ncurses nls selinux static-libs skill systemd test unicode"
 RESTRICT="!test? ( test )"
 
@@ -29,8 +29,6 @@ DEPEND="
 RDEPEND="
 	${DEPEND}
 	!<app-i18n/man-pages-l10n-4.2.0-r1
-	!<app-i18n/man-pages-de-2.12-r1
-	!<app-i18n/man-pages-pl-0.7-r1
 	!<app-i18n/man-pages-zh_CN-1.6.4.2
 	kill? (
 		!sys-apps/coreutils[kill]
@@ -55,6 +53,9 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-4.0.5-top-legacy-config-vuln.patch # bug #958286
 	"${FILESDIR}"/${PN}-4.0.5-macos.patch
 	"${FILESDIR}"/${PN}-4.0.5-pgrep-old-linux-headers.patch # bug #911375
+	"${FILESDIR}"/${PN}-4.0.5-pidwait-half.patch # bug #959706
+	"${FILESDIR}"/${PN}-4.0.5-pgrep-pidwait.patch
+	"${FILESDIR}"/${PN}-4.0.5-sysctl-ignore_failure.patch # bug #969014
 )
 
 src_prepare() {
