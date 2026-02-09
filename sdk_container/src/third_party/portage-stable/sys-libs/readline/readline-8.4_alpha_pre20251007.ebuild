@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -44,7 +44,7 @@ elif (( PLEVEL < 0 )) && [[ ${PV} == *_p* ]] ; then
 	# the alpha, and the next pre-release is usually quite far away.
 	#
 	# i.e. if it's worth packaging the alpha, it's worth packaging a followup.
-	READLINE_COMMIT="488d7edc22894d30b6de7f2d4190bf7403f63ffd"
+	READLINE_COMMIT="a0ceb95d8c5d730ac9461e4abaea402e862ac907"
 	SRC_URI="https://git.savannah.gnu.org/cgit/readline.git/snapshot/readline-${READLINE_COMMIT}.tar.gz -> ${P}-${READLINE_COMMIT}.tar.gz"
 	S=${WORKDIR}/${PN}-${READLINE_COMMIT}
 else
@@ -78,7 +78,7 @@ fi
 LICENSE="GPL-3+"
 SLOT="0/8"  # subslot matches SONAME major
 if (( PLEVEL >= 0 )); then
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 IUSE="static-libs +unicode utils"
 
@@ -126,7 +126,7 @@ src_prepare() {
 
 	#(( PLEVEL < 0 )) && eautoreconf
 
-	if use prefix && [[ ! -x "${BROOT}"/usr/bin/pkg-config ]] ; then
+	if use prefix && [[ -n ${STAGE} ]] ; then
 		# If we're bootstrapping, make a guess. We don't have pkg-config
 		# around yet. bug #818103.
 		# Incorrectly populating this leads to underlinked libreadline.
@@ -141,7 +141,7 @@ src_prepare() {
 	else
 		# Force ncurses linking, bug #71420.
 		# Use pkg-config to get the right values, bug #457558.
-		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs)
+		local ncurses_libs=$($(tc-getPKG_CONFIG) ncurses$(usex unicode w '') --libs || die)
 	fi
 
 	sed -i \
