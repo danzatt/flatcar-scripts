@@ -36,7 +36,3 @@ nvidia
 nvml
 optix
 video_cards_nvidia
-
-# sys-apps/systemd is masked
-systemd
-uwsgi_plugins_systemd_logger
