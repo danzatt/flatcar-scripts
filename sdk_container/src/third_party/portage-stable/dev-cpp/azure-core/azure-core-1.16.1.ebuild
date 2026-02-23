@@ -5,7 +5,7 @@ EAPI=8
 
 inherit cmake
 
-COMMIT="b6e7a28c6200d50080c38a598cf92d96d45cf976"
+COMMIT="11a2a38aa79daf573c2a16353dd9121536ac9fc1"
 MY_P="azure-sdk-for-cpp-${COMMIT}"
 DESCRIPTION="Azure SDK for C++"
 HOMEPAGE="https://azure.github.io/azure-sdk-for-cpp/"
