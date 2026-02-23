@@ -16,7 +16,7 @@ if [[ ${PV} == *_rc* ]]; then
 	SRC_URI="https://download.samba.org/pub/samba/rc/${MY_P}.tar.gz"
 else
 	SRC_URI="https://download.samba.org/pub/samba/stable/${MY_P}.tar.gz"
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~sparc ~x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~sparc x86"
 fi
 S="${WORKDIR}/${MY_P}"
 
@@ -57,9 +57,9 @@ MULTILIB_WRAPPED_HEADERS=(
 	/usr/include/samba-4.0/ctdb_version.h
 )
 
-TALLOC_VERSION="2.4.2"
-TDB_VERSION="1.4.12"
-TEVENT_VERSION="0.16.1"
+TALLOC_VERSION="2.4.3"
+TDB_VERSION="1.4.13"
+TEVENT_VERSION="0.16.2"
 
 COMMON_DEPEND="
 	>=app-arch/libarchive-3.1.2:=[${MULTILIB_USEDEP}]
@@ -79,16 +79,20 @@ COMMON_DEPEND="
 	>=sys-libs/talloc-${TALLOC_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tdb-${TDB_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tevent-${TEVENT_VERSION}[${MULTILIB_USEDEP}]
-	sys-libs/zlib[${MULTILIB_USEDEP}]
+	virtual/zlib:=[${MULTILIB_USEDEP}]
 	virtual/libcrypt:=[${MULTILIB_USEDEP}]
 	virtual/libiconv
 	$(python_gen_cond_dep '
 		addc? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
 			dev-python/markdown[${PYTHON_USEDEP}]
+			net-dns/bind[gssapi]
 		)
 		ads? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
+			dev-python/markdown[${PYTHON_USEDEP}]
 			net-dns/bind[gssapi]
 		)
 	')
@@ -303,6 +307,8 @@ multilib_src_configure() {
 	else
 		myconf+=( --with-shared-modules=DEFAULT,!vfs_snapper )
 	fi
+
+	append-ldflags $(test-flags-CCLD -Wl,--undefined-version) # bug 914898
 
 	append-cppflags "-I${ESYSROOT}/usr/include/et"
 
