@@ -24,7 +24,7 @@ else
 	"
 	S="${WORKDIR}/${PN}-src-${SRC_PV}"
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ~ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 
 LICENSE="public-domain"
@@ -33,7 +33,7 @@ IUSE="debug doc icu +readline secure-delete static-libs tcl test tools"
 RESTRICT="!test? ( test )"
 
 RDEPEND="
-	sys-libs/zlib:=[${MULTILIB_USEDEP}]
+	virtual/zlib:=[${MULTILIB_USEDEP}]
 	icu? ( dev-libs/icu:=[${MULTILIB_USEDEP}] )
 	readline? ( sys-libs/readline:=[${MULTILIB_USEDEP}] )
 	tcl? ( dev-lang/tcl:=[${MULTILIB_USEDEP}] )
@@ -51,10 +51,6 @@ fi
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-3.47.2-hwtime.h-Don-t-use-rdtsc-on-i486.patch
-	# https://sqlite.org/forum/forumpost/f93323a743
-	"${FILESDIR}"/${PN}-3.49.0-icu-tests.patch
-	# https://bugs.gentoo.org/949981, https://www2.sqlite.org/src/info/ffd05de8a3b7cab1
-	"${FILESDIR}"/${PN}-3.49.1-jimsh.patch
 )
 
 _fossil_fetch() {
@@ -337,7 +333,7 @@ multilib_src_configure() {
 }
 
 multilib_src_compile() {
-	emake HAVE_TCL="$(usev tcl 1)" TCLLIBDIR="${EPREFIX}/usr/$(get_libdir)/${P}"
+	emake HAVE_TCL="$(usex tcl 1 0)" TCLLIBDIR="${EPREFIX}/usr/$(get_libdir)/${P}"
 
 	if use tools && multilib_is_native_abi; then
 		emake changeset dbdump dbhash dbtotxt index_usage rbu scrub showdb showjournal showshm showstat4 showwal sqldiff sqlite3_analyzer sqlite3_checker sqlite3_expert sqltclsh
