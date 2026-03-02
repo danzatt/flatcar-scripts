@@ -1,4 +1,4 @@
-# Copyright 2023-2025 Gentoo Authors
+# Copyright 2023-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: linux-mod-r1.eclass
@@ -211,13 +211,11 @@ fi
 # @DEFAULT_UNSET
 # @DESCRIPTION:
 # Used with USE=modules-sign.  Can be set to hash algorithm to use
-# during signature generation.
+# during signature generation (e.g. sha512).
 #
 # Rather than set this, it is recommended to select using the kernel's
 # configuration to ensure proper support (e.g. CONFIG_MODULE_SIG_SHA256),
 # and then it will be auto-detected here.
-#
-# Valid values: sha512,sha384,sha256,sha224,sha1
 #
 # Default if unset: kernel CONFIG_MODULE_SIG_HASH's value
 
@@ -1224,8 +1222,11 @@ _modules_sanity_kernelversion() {
 		fi
 	fi
 
+	# wrt *, KV_EXTRA can have e.g. -p1 used by dist-kernel's version as
+	# _p1, ideally would check it too but this string can contain about
+	# anything so ignore it rather than try to figure out what it is
 	if use dist-kernel &&
-		! has_version "~virtual/dist-kernel-${KV_MAJOR}.${KV_MINOR}.${KV_PATCH}"
+		! has_version "=virtual/dist-kernel-${KV_MAJOR}.${KV_MINOR}.${KV_PATCH}*"
 	then
 		ewarn
 		ewarn "The kernel modules in ${CATEGORY}/${PN} are being built for"
