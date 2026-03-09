@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: python-utils-r1.eclass
@@ -679,7 +679,7 @@ python_newexe() {
 	local newfn=${2}
 
 	local scriptdir=$(python_get_scriptdir)
-	local d=${scriptdir#${EPREFIX}}
+	local d=${scriptdir#"${EPREFIX}"}
 
 	(
 		dodir "${wrapd}"
@@ -817,7 +817,7 @@ python_domodule() {
 	else
 		# relative to site-packages
 		local sitedir=$(python_get_sitedir)
-		d=${sitedir#${EPREFIX}}/${_PYTHON_MODULEROOT//.//}
+		d=${sitedir#"${EPREFIX}"}/${_PYTHON_MODULEROOT//.//}
 	fi
 
 	if [[ ${EBUILD_PHASE} == install ]]; then
@@ -929,8 +929,12 @@ _python_wrapper_setup() {
 			chmod +x "${workdir}/bin/python-config" \
 				"${workdir}/bin/python3-config" || die
 
-			# Python 2.6+.
-			ln -s "${PYTHON/python/2to3-}" "${workdir}"/bin/2to3 || die
+			# Python 2.6+. Deprecated in 3.11, removed in 3.13.
+			if ver_test ${EPYTHON#python} -lt 3.13; then
+				ln -s "${PYTHON/python/2to3-}" "${workdir}"/bin/2to3 || die
+			else
+				nonsupp+=( 2to3 )
+			fi
 
 			# Python 2.7+.
 			ln -s "${EPREFIX}"/usr/$(get_libdir)/pkgconfig/${EPYTHON/n/n-}.pc \
@@ -1416,7 +1420,7 @@ epytest() {
 	[[ ${NO_COLOR} ]] && color=no
 
 	mkdir -p "${T}/pytest-xml" || die
-	local junit_xml=$(mktemp "${T}/pytest-xml/${EPYTHON}-XXX.xml" || die)
+	local junit_xml=$(mktemp "${T}/pytest-xml/${EPYTHON}-XXXXXX.xml" || die)
 
 	local args=(
 		# verbose progress reporting and tracebacks
@@ -1534,9 +1538,17 @@ epytest() {
 			)
 		fi
 
-		args+=(
-			"--reruns=${EPYTEST_RERUNS}"
-		)
+		if has_version ">=dev-python/pytest-rerunfailures-16.1"; then
+			args+=(
+				# --reruns only adds N reruns for tests not marked for reruns
+				# --force-reruns overrides the rerun count for all tests
+				"--force-reruns=${EPYTEST_RERUNS}"
+			)
+		else
+			args+=(
+				"--reruns=${EPYTEST_RERUNS}"
+			)
+		fi
 	fi
 
 	if [[ -n ${EPYTEST_TIMEOUT} ]]; then
