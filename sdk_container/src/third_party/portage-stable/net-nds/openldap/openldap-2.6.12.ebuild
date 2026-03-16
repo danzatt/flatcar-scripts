@@ -1,34 +1,28 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 # Re cleanups:
-# 2.5.x is an LTS release so we want to keep it for a while.
+# 2.6.12 is an LTS release so we want to keep it for a while.
 
 inherit autotools flag-o-matic multilib multilib-minimal preserve-libs
 inherit ssl-cert toolchain-funcs systemd tmpfiles verify-sig
 
 MY_PV="$(ver_rs 1-2 _)"
 
-BIS_PN=rfc2307bis.schema
-BIS_PV=20140524
-BIS_P="${BIS_PN}-${BIS_PV}"
-
 DESCRIPTION="LDAP suite of application and development tools"
 HOMEPAGE="https://www.openldap.org/"
 SRC_URI="
 	https://openldap.org/software/download/OpenLDAP/${PN}-release/${P}.tgz
-	mirror://gentoo/${BIS_P}
 	verify-sig? ( https://openldap.org/software/download/OpenLDAP/${PN}-release/${P}.tgz.asc )
 "
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/openldap.asc
-#S="${WORKDIR}"/${P}
 
 LICENSE="OPENLDAP GPL-2"
 # Subslot added for bug #835654
 SLOT="0/$(ver_cut 1-2)"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 sparc ~x86 ~amd64-linux ~x86-linux"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 
 IUSE_DAEMON="argon2 +cleartext crypt experimental minimal samba tcpd"
 IUSE_OVERLAY="overlays perl autoca"
@@ -46,7 +40,7 @@ REQUIRED_USE="
 "
 RESTRICT="!test? ( test )"
 
-SYSTEM_LMDB_VER=0.9.33
+SYSTEM_LMDB_VER=0.9.35
 # openssl is needed to generate lanman-passwords required by samba
 COMMON_DEPEND="
 	kernel_linux? ( sys-apps/util-linux )
@@ -826,9 +820,6 @@ multilib_src_install() {
 		doins */*.so
 		docinto contrib
 		newdoc addrdnvalues/README addrdnvalues-README
-
-		insinto /etc/openldap/schema
-		newins "${DISTDIR}"/${BIS_P} ${BIS_PN}
 
 		docinto back-sock ; dodoc "${S}"/servers/slapd/back-sock/searchexample*
 		docinto back-perl ; dodoc "${S}"/servers/slapd/back-perl/SampleLDAP.pm
