@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -12,7 +12,7 @@ if [[ ${PV} == *9999 ]] ; then
 		https://github.com/pkgcore/pkgcore.git"
 	inherit git-r3
 else
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~x64-macos"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~x64-macos"
 	inherit pypi
 fi
 
@@ -25,7 +25,8 @@ SLOT="0"
 if [[ ${PV} == *9999 ]]; then
 	COMMON_DEPEND="~dev-python/snakeoil-9999[${PYTHON_USEDEP}]"
 else
-	COMMON_DEPEND=">=dev-python/snakeoil-0.10.11[${PYTHON_USEDEP}]"
+	COMMON_DEPEND=">=dev-python/snakeoil-0.10.11[${PYTHON_USEDEP}]
+		<dev-python/snakeoil-0.11.0[${PYTHON_USEDEP}]"
 fi
 
 RDEPEND="
