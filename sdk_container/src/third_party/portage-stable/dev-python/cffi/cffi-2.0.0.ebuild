@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # please keep this ebuild at EAPI 8 -- sys-apps/portage dep
@@ -20,6 +20,7 @@ HOMEPAGE="
 
 LICENSE="MIT"
 SLOT="0/${PV}"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 
 # Needs recent libffi for HPPA fixes
 DEPEND="
@@ -41,10 +42,12 @@ BDEPEND="
 
 distutils_enable_sphinx doc/source
 EPYTEST_PLUGINS=()
+# xdist fails to collect the tests
 distutils_enable_tests pytest
 
 PATCHES=(
 	"${FILESDIR}"/cffi-1.14.0-darwin-no-brew.patch
+	"${FILESDIR}"/${P}-pycparser-tests.patch
 )
 
 src_prepare() {
