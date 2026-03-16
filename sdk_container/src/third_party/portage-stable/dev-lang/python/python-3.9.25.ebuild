@@ -1,14 +1,16 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
 WANT_LIBTOOL="none"
 
-inherit autotools check-reqs flag-o-matic git-r3 multiprocessing pax-utils
-inherit prefix toolchain-funcs
+inherit autotools check-reqs flag-o-matic multiprocessing pax-utils
+inherit prefix toolchain-funcs verify-sig
 
+MY_PV=${PV/_rc/rc}
+MY_P="Python-${MY_PV%_p*}"
 PYVER=$(ver_cut 1-2)
-PATCHSET="python-gentoo-patches-3.9.23"
+PATCHSET="python-gentoo-patches-${MY_PV}"
 
 DESCRIPTION="An interpreted, interactive, object-oriented programming language"
 HOMEPAGE="
@@ -16,13 +18,17 @@ HOMEPAGE="
 	https://github.com/python/cpython/
 "
 SRC_URI="
+	https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz
 	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	verify-sig? (
+		https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz.asc
+	)
 "
-EGIT_REPO_URI="https://github.com/python/cpython.git"
-EGIT_BRANCH=${PYVER}
+S="${WORKDIR}/${MY_P}"
 
 LICENSE="PSF-2"
 SLOT="${PYVER}"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="
 	bluetooth debug +ensurepip examples gdbm +ncurses pgo +readline
 	+sqlite +ssl test tk valgrind
@@ -42,7 +48,7 @@ RDEPEND="
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	>=virtual/zlib-1.1.3:=
 	virtual/libcrypt:=
 	virtual/libintl
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
@@ -74,6 +80,7 @@ BDEPEND="
 	dev-build/autoconf-archive
 	app-alternatives/awk
 	virtual/pkgconfig
+	verify-sig? ( sec-keys/openpgp-keys-python )
 "
 PDEPEND="
 	ensurepip? (
@@ -81,6 +88,8 @@ PDEPEND="
 		dev-python/ensurepip-setuptools
 	)
 "
+
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/python.org.asc
 
 # large file tests involve a 2.5G file being copied (duplicated)
 CHECKREQS_DISK_BUILD=5500M
@@ -98,7 +107,9 @@ pkg_setup() {
 }
 
 src_unpack() {
-	git-r3_src_unpack
+	if use verify-sig; then
+		verify-sig_verify_detached "${DISTDIR}"/${MY_P}.tar.xz{,.asc}
+	fi
 	default
 }
 
@@ -185,6 +196,11 @@ src_configure() {
 				-x test_ctypes
 				-x test_external_inspection
 				-x test_statistics
+			)
+			;;
+		powerpc64-*) # big endian
+			COMMON_TEST_SKIPS+=(
+				-x test_descr
 			)
 			;;
 		riscv*)
@@ -336,10 +352,10 @@ src_configure() {
 		#
 		# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
 		local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-		local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
+		local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
 		local -x CFLAGS= LDFLAGS=
 		local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-		local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
+		local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
 
 		# We need to build our own Python on CBUILD first, and feed it in.
 		# bug #847910 and bug #864911.
@@ -526,7 +542,7 @@ src_install() {
 
 	ln -s ../python/EXTERNALLY-MANAGED "${libdir}/EXTERNALLY-MANAGED" || die
 
-	dodoc Misc/{ACKS,HISTORY}
+	dodoc Misc/{ACKS,HISTORY,NEWS}
 
 	if use examples; then
 		docinto examples
