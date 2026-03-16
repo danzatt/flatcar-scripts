@@ -1,10 +1,10 @@
-# Copyright 2002-2025 Gentoo Authors
+# Copyright 2002-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: toolchain-funcs.eclass
 # @MAINTAINER:
 # Toolchain Ninjas <toolchain@gentoo.org>
-# @SUPPORTED_EAPIS: 7 8
+# @SUPPORTED_EAPIS: 7 8 9
 # @BLURB: functions to query common info about the toolchain
 # @DESCRIPTION:
 # The toolchain-funcs aims to provide a complete suite of functions
@@ -17,7 +17,7 @@ if [[ -z ${_TOOLCHAIN_FUNCS_ECLASS} ]]; then
 _TOOLCHAIN_FUNCS_ECLASS=1
 
 case ${EAPI} in
-	7|8) ;;
+	7|8|9) ;;
 	*) die "${ECLASS}: EAPI ${EAPI:-0} not supported" ;;
 esac
 
@@ -402,6 +402,7 @@ tc-env_build() {
 	PKG_CONFIG=$(tc-getBUILD_PKG_CONFIG) \
 	RANLIB=$(tc-getBUILD_RANLIB) \
 	READELF=$(tc-getBUILD_READELF) \
+	CHOST=${CBUILD:-${CHOST}} \
 	"$@"
 }
 
@@ -445,8 +446,7 @@ tc-env_build() {
 # @CODE
 econf_build() {
 	local CBUILD=${CBUILD:-${CHOST}}
-	econf_env() { CHOST=${CBUILD} econf "$@"; }
-	tc-env_build econf_env "$@"
+	tc-env_build econf "$@"
 }
 
 # @FUNCTION: tc-ld-is-bfd
@@ -474,7 +474,7 @@ tc-ld-is-bfd() {
 	EOF
 	out=$($(tc-getCC "$@") ${CFLAGS} ${CPPFLAGS} ${LDFLAGS} -Wl,--version "${base}.c" -o "${base}" 2>&1)
 	rm -f "${base}"*
-	if [[ ! ${out} =~ .*^"GNU ld".* ]] ; then
+	if [[ ! ${out} =~ (^|$'\n')"GNU ld".* ]] ; then
 		return 1
 	fi
 
@@ -659,11 +659,11 @@ _tc-has-openmp() {
 # build-time, e.g.
 # @CODE
 # pkg_pretend() {
-#	[[ ${MERGE_TYPE} != binary ]] && tc-check-min_ver gcc 13.2.0
+#	[[ ${MERGE_TYPE} != binary ]] && tc-check-min_ver gcc 13.2
 # }
 #
 # pkg_setup() {
-#	[[ ${MERGE_TYPE} != binary ]] && tc-check-min_ver gcc 13.2.0
+#	[[ ${MERGE_TYPE} != binary ]] && tc-check-min_ver gcc 13.2
 # }
 # @CODE
 tc-check-min_ver() {
@@ -1248,7 +1248,7 @@ tc-is-lto() {
 			;;
 		gcc)
 			$(tc-getCC) ${CFLAGS} -c -o "${f}" -x c - <<<"" || die
-			[[ $($(tc-getREADELF) -S "${f}") == *.gnu.lto* ]] && ret=0
+			[[ $($(tc-getOBJDUMP) -s "${f}") == *.gnu.lto* ]] && ret=0
 			;;
 	esac
 	rm -f "${f}" || die
