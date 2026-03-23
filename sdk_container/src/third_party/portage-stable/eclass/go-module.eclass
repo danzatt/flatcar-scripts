@@ -1,4 +1,4 @@
-# Copyright 2019-2025 Gentoo Authors
+# Copyright 2019-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: go-module.eclass
@@ -68,7 +68,7 @@ esac
 if [[ -z ${_GO_MODULE_ECLASS} ]]; then
 _GO_MODULE_ECLASS=1
 
-inherit multiprocessing toolchain-funcs go-env
+inherit toolchain-funcs go-env
 
 if [[ ! ${GO_OPTIONAL} ]]; then
 	BDEPEND=">=dev-lang/go-1.20:="
@@ -92,14 +92,6 @@ export GOCACHE="${T}/go-build"
 # Set the default for the go module cache
 # See "go help environment" for information on this setting
 export GOMODCACHE="${WORKDIR}/go-mod"
-
-# The following go flags should be used for all builds.
-# -buildmode=pie builds position independent executables
-# -buildvcs=false omits version control information
-# -modcacherw makes the build cache read/write
-# -v prints the names of packages as they are compiled
-# -x prints commands as they are executed
-export GOFLAGS="-buildvcs=false -modcacherw -v -x"
 
 # Do not complain about CFLAGS etc since go projects do not use them.
 QA_FLAGS_IGNORED='.*'
@@ -362,11 +354,6 @@ go-module_setup_proxy() {
 # 3. Otherwise, call 'ego mod verify' and then do a normal unpack.
 # Set compile env via go-env.
 go-module_src_unpack() {
-	if use amd64 || use arm || use arm64 ||
-		( use ppc64 && [[ $(tc-endian) == "little" ]] ) || use s390 || use x86; then
-			GOFLAGS="-buildmode=pie ${GOFLAGS}"
-	fi
-	GOFLAGS="${GOFLAGS} -p=$(makeopts_jobs)"
 	if [[ "${#EGO_SUM[@]}" -gt 0 ]]; then
 		eqawarn "QA Notice: This ebuild uses EGO_SUM which is deprecated"
 		eqawarn "Please migrate to a dependency tarball"
@@ -389,6 +376,7 @@ go-module_src_unpack() {
 }
 
 # @FUNCTION: _go-module_src_unpack_gosum
+# @INTERNAL
 # @DEPRECATED: none
 # @DESCRIPTION:
 # Populate a GOPROXY directory hierarchy with distfiles from EGO_SUM and
@@ -435,6 +423,7 @@ _go-module_src_unpack_gosum() {
 }
 
 # @FUNCTION: _go-module_gosum_synthesize_files
+# @INTERNAL
 # @DEPRECATED: none
 # @DESCRIPTION:
 # Given a path &  version, populate all Goproxy metadata files which aren't
@@ -463,6 +452,7 @@ _go-module_gosum_synthesize_files() {
 }
 
 # @FUNCTION: _go-module_src_unpack_verify_gosum
+# @INTERNAL
 # @DEPRECATED: none
 # @DESCRIPTION:
 # Validate the Go modules declared by EGO_SUM are sufficient to cover building
