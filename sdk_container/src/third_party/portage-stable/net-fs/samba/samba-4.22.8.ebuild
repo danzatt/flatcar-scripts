@@ -1,11 +1,11 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 PYTHON_COMPAT=( python3_{11..13} )
 PYTHON_REQ_USE="threads(+),xml(+)"
-inherit python-single-r1 flag-o-matic waf-utils multilib-minimal linux-info systemd pam tmpfiles
+inherit python-single-r1 flag-o-matic waf-utils multilib-minimal linux-info optfeature systemd pam tmpfiles
 
 DESCRIPTION="Samba Suite Version 4"
 HOMEPAGE="https://samba.org/"
@@ -57,9 +57,9 @@ MULTILIB_WRAPPED_HEADERS=(
 	/usr/include/samba-4.0/ctdb_version.h
 )
 
-TALLOC_VERSION="2.4.2"
-TDB_VERSION="1.4.12"
-TEVENT_VERSION="0.16.1"
+TALLOC_VERSION="2.4.3"
+TDB_VERSION="1.4.13"
+TEVENT_VERSION="0.16.2"
 
 COMMON_DEPEND="
 	>=app-arch/libarchive-3.1.2:=[${MULTILIB_USEDEP}]
@@ -79,16 +79,20 @@ COMMON_DEPEND="
 	>=sys-libs/talloc-${TALLOC_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tdb-${TDB_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tevent-${TEVENT_VERSION}[${MULTILIB_USEDEP}]
-	sys-libs/zlib[${MULTILIB_USEDEP}]
+	virtual/zlib:=[${MULTILIB_USEDEP}]
 	virtual/libcrypt:=[${MULTILIB_USEDEP}]
 	virtual/libiconv
 	$(python_gen_cond_dep '
 		addc? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
 			dev-python/markdown[${PYTHON_USEDEP}]
+			net-dns/bind[gssapi]
 		)
 		ads? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
+			dev-python/markdown[${PYTHON_USEDEP}]
 			net-dns/bind[gssapi]
 		)
 	')
@@ -304,6 +308,8 @@ multilib_src_configure() {
 		myconf+=( --with-shared-modules=DEFAULT,!vfs_snapper )
 	fi
 
+	append-ldflags $(test-flags-CCLD -Wl,--undefined-version) # bug 914898
+
 	append-cppflags "-I${ESYSROOT}/usr/include/et"
 
 	waf-utils_src_configure ${myconf[@]}
@@ -384,4 +390,8 @@ multilib_src_install() {
 
 pkg_postinst() {
 	tmpfiles_process samba.conf
+
+	if use addc || use ads ; then
+		optfeature "Hide passwords from command line when using samba-tool or samba-gpupdate" dev-python/setproctitle
+	fi
 }
