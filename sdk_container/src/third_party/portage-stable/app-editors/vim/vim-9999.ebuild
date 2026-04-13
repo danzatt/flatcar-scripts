@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -11,9 +11,10 @@ VIM_PATCHES_VERSION="9.0.2092"
 LUA_COMPAT=( lua5-{1..4} luajit )
 PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="threads(+)"
-USE_RUBY="ruby31 ruby32"
+USE_RUBY="ruby32 ruby33"
+GENTOO_DEPEND_ON_PERL=no
 
-inherit bash-completion-r1 flag-o-matic lua-single desktop python-single-r1 ruby-single toolchain-funcs vim-doc xdg-utils
+inherit bash-completion-r1 flag-o-matic lua-single desktop perl-module python-single-r1 ruby-single toolchain-funcs vim-doc xdg-utils
 
 if [[ ${PV} == 9999* ]]; then
 	inherit git-r3
@@ -21,7 +22,7 @@ if [[ ${PV} == 9999* ]]; then
 else
 	SRC_URI="https://github.com/vim/vim/archive/v${PV}.tar.gz -> ${P}.tar.gz
 		https://git.sr.ht/~xxc3nsoredxx/vim-patches/refs/download/vim-${VIM_PATCHES_VERSION}-patches/vim-${VIM_PATCHES_VERSION}-patches.tar.xz"
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 
 DESCRIPTION="Vim, an improved vi-style text editor"
@@ -29,7 +30,7 @@ HOMEPAGE="https://www.vim.org https://github.com/vim/vim"
 
 LICENSE="vim"
 SLOT="0"
-IUSE="acl crypt cscope debug gpm lua minimal nls perl python racket ruby selinux sound tcl terminal vim-pager X"
+IUSE="acl crypt cscope debug gpm lua minimal nls perl python racket ruby selinux sound tcl terminal vim-pager X ${GENTOO_PERL_USESTRING}"
 REQUIRED_USE="
 	lua? ( ${LUA_REQUIRED_USE} )
 	python? ( ${PYTHON_REQUIRED_USE} )
@@ -49,7 +50,10 @@ RDEPEND="
 		$(lua_gen_impl_dep 'deprecated' lua5-1)
 	)
 	nls? ( virtual/libintl )
-	perl? ( dev-lang/perl:= )
+	perl? (
+		${GENTOO_PERL_DEPSTRING}
+		dev-lang/perl:=
+	)
 	python? ( ${PYTHON_DEPS} )
 	racket? ( dev-scheme/racket )
 	ruby? ( ${RUBY_DEPS} )
