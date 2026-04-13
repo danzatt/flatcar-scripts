@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -36,11 +36,10 @@ BDEPEND="
 	app-text/docbook-xml-dtd:4.1.2
 	app-text/docbook-xsl-stylesheets
 	>=dev-libs/glib-2.32
-	dev-libs/gobject-introspection-common
 	dev-libs/libxslt
 	dev-util/glib-utils
 	virtual/pkgconfig
-	introspection? ( >=dev-libs/gobject-introspection-0.6.2 )
+	introspection? ( >=dev-libs/gobject-introspection-1.82.0-r2 )
 	nls? ( sys-devel/gettext )
 	test? (
 		$(python_gen_any_dep '
