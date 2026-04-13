@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -8,7 +8,7 @@ EAPI=8
 # https://lists.haxx.se/listinfo/curl-distros
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/danielstenberg.asc
-inherit autotools multilib-minimal multiprocessing prefix toolchain-funcs verify-sig
+inherit dot-a autotools multilib-minimal multiprocessing prefix toolchain-funcs verify-sig
 
 DESCRIPTION="A Client that groks URLs"
 HOMEPAGE="https://curl.se/"
@@ -22,7 +22,7 @@ else
 		S="${WORKDIR}/${P//_/-}"
 	else
 		CURL_URI="https://curl.se/download/"
-		KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+		KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 	fi
 	SRC_URI="
 		${CURL_URI}${P//_/-}.tar.xz
@@ -98,8 +98,11 @@ REQUIRED_USE="
 # However 'supported' vs 'works' are two entirely different things; be sane but
 # don't be afraid to require a later version.
 # ngtcp2 = https://bugs.gentoo.org/912029 - can only build with one tls backend at a time.
+# TODO: OpenSSL-QUIC support is going to be removed in 2026; depend on ngtcp2[{gnutls,openssl}] before that point.
+# - https://github.com/curl/curl/pull/18820 (Deprecate OpenSSL QUIC support)
+# - https://github.com/curl/curl/issues/18336 (curl w/ OpenSSL QUIC fails to fetch Google.com)
 RDEPEND="
-	>=sys-libs/zlib-1.2.5[${MULTILIB_USEDEP}]
+	>=virtual/zlib-1.2.5:=[${MULTILIB_USEDEP}]
 	adns? ( >=net-dns/c-ares-1.16.0:=[${MULTILIB_USEDEP}] )
 	brotli? ( app-arch/brotli:=[${MULTILIB_USEDEP}] )
 	http2? ( >=net-libs/nghttp2-1.15.0:=[${MULTILIB_USEDEP}] )
@@ -123,7 +126,7 @@ RDEPEND="
 		)
 		mbedtls? (
 			app-misc/ca-certificates
-			net-libs/mbedtls:0=[${MULTILIB_USEDEP}]
+			net-libs/mbedtls:3=[${MULTILIB_USEDEP}]
 		)
 		openssl? (
 			>=dev-libs/openssl-1.0.2:=[static-libs?,${MULTILIB_USEDEP}]
@@ -148,7 +151,7 @@ BDEPEND="
 	verify-sig? ( sec-keys/openpgp-keys-danielstenberg )
 "
 
-DOCS=( README docs/{FEATURES.md,INTERNALS.md,FAQ,BUGS.md,CONTRIBUTE.md} )
+DOCS=( README docs/{FEATURES.md,INTERNALS.md,FAQ.md,BUGS.md,CONTRIBUTE.md} )
 
 MULTILIB_WRAPPED_HEADERS=(
 	/usr/include/curl/curlbuild.h
@@ -173,14 +176,9 @@ QA_CONFIG_IMPL_DECL_SKIP=(
 )
 
 PATCHES=(
-	"${FILESDIR}/${PN}-prefix-4.patch"
+	"${FILESDIR}/${PN}-prefix-6.patch"
 	"${FILESDIR}/${PN}-respect-cflags-3.patch"
-	"${FILESDIR}/${P}-gssapi-non-ssl-build.patch"
-	"${FILESDIR}/${P}-hostip-correct-proxy-name.patch"
-	"${FILESDIR}/${P}-http2-stream-window-size.patch"
-	"${FILESDIR}/${P}-httpsrr-target-check.patch"
-	"${FILESDIR}/${P}-krb5-ftp.patch"
-	"${FILESDIR}/${P}-openssl-quic-stream-shutdown.patch"
+	"${FILESDIR}/${P}-restore-heimdal.patch"
 )
 
 src_prepare() {
@@ -231,10 +229,9 @@ _get_curl_tls_configure_opts() {
 		die "Please file a bug, hit impossible condition w/ USE=ssl handling."
 	fi
 
-	# Explicitly Disable unimplemented b
+	# Explicitly Disable unimplemented backends
 	tls_opts+=(
 		--without-amissl
-		--without-bearssl
 		--without-wolfssl
 	)
 
@@ -242,6 +239,7 @@ _get_curl_tls_configure_opts() {
 }
 
 multilib_src_configure() {
+	use static-libs && lto-guarantee-fat
 	# We make use of the fact that later flags override earlier ones
 	# So start with all ssl providers off until proven otherwise
 	# TODO: in the future, we may want to add wolfssl (https://www.wolfssl.com/)
@@ -343,10 +341,8 @@ multilib_src_configure() {
 		$(use_with kerberos gssapi "${EPREFIX}"/usr)
 		$(use_with sasl-scram libgsasl)
 		$(use_with psl libpsl)
-		--without-msh3
 		--without-quiche
 		--without-schannel
-		--without-secure-transport
 		--without-winidn
 		--with-zlib
 		--with-zsh-functions-dir="${EPREFIX}"/usr/share/zsh/site-functions
@@ -421,7 +417,7 @@ multilib_src_test() {
 	# this ends up breaking when nproc is huge (like -j80).
 	# The network sandbox causes tests 241 and 1083 to fail; these are typically skipped
 	# as most gentoo users don't have an 'ip6-localhost'
-	multilib_is_native_abi && emake test TFLAGS="-n -v -a -k -am -p -j$((2*$(makeopts_jobs))) !241 !1083"
+	multilib_is_native_abi && emake test TFLAGS="-n -v -a -k -am -p -j$((2*$(get_makeopts_jobs))) !241 !1083"
 }
 
 multilib_src_install() {
@@ -436,6 +432,9 @@ multilib_src_install() {
 multilib_src_install_all() {
 	einstalldocs
 	find "${ED}" -type f -name '*.la' -delete || die
+
+	use static-libs && strip-lto-bytecode
+
 	rm -rf "${ED}"/etc/ || die
 }
 
