@@ -1,18 +1,22 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 PYTHON_COMPAT=( python3_{11..14} )
-inherit bash-completion-r1 flag-o-matic meson-multilib python-any-r1
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/p11-kit.asc
+inherit shell-completion meson-multilib python-any-r1 verify-sig
 
 DESCRIPTION="Provides a standard configuration setup for installing PKCS#11"
 HOMEPAGE="https://p11-glue.github.io/p11-glue/p11-kit.html"
-SRC_URI="https://github.com/p11-glue/p11-kit/releases/download/${PV}/${P}.tar.xz"
+SRC_URI="
+	https://github.com/p11-glue/p11-kit/releases/download/${PV}/${P}.tar.xz
+	verify-sig? ( https://github.com/p11-glue/p11-kit/releases/download/${PV}/${P}.tar.xz.sig )
+"
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~x64-macos ~x64-solaris"
 IUSE="+libffi gtk-doc nls systemd test"
 RESTRICT="!test? ( test )"
 
@@ -20,7 +24,7 @@ RDEPEND="
 	app-misc/ca-certificates
 	>=dev-libs/libtasn1-3.4:=[${MULTILIB_USEDEP}]
 	libffi? ( dev-libs/libffi:=[${MULTILIB_USEDEP}] )
-	systemd? ( sys-apps/systemd:= )
+	systemd? ( sys-apps/systemd )
 "
 DEPEND="${RDEPEND}"
 BDEPEND="
@@ -30,6 +34,7 @@ BDEPEND="
 	virtual/pkgconfig
 	gtk-doc? ( dev-util/gtk-doc )
 	nls? ( sys-devel/gettext )
+	verify-sig? ( sec-keys/openpgp-keys-p11-kit )
 "
 
 src_prepare() {
@@ -43,9 +48,6 @@ src_prepare() {
 }
 
 multilib_src_configure() {
-	# https://github.com/p11-glue/p11-kit/issues/664
-	append-cflags -std=gnu17
-
 	# Disable unsafe tests, bug#502088
 	export FAKED_MODE=1
 
@@ -61,7 +63,10 @@ multilib_src_configure() {
 
 	local emesonargs=(
 		--native-file "${native_file}"
+		-Dbash_completion=enabled
+		-Dzsh_completion=enabled
 		-Dbashcompdir="$(get_bashcompdir)"
+		-Dzshcompdir="$(get_zshcompdir)"
 		-Dtrust_module=enabled
 		-Dtrust_paths="${EPREFIX}"/etc/ssl/certs/ca-certificates.crt
 		$(meson_feature libffi)
