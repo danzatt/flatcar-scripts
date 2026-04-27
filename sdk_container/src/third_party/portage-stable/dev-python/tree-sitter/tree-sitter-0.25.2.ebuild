@@ -5,7 +5,7 @@ EAPI=8
 
 DISTUTILS_EXT=1
 DISTUTILS_USE_PEP517=setuptools
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 
 inherit distutils-r1
 
@@ -22,22 +22,22 @@ S=${WORKDIR}/py-${P}
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 
 # setuptools is needed for distutils import
-DEPEND="<dev-libs/tree-sitter-0.25.0:="
+DEPEND="=dev-libs/tree-sitter-0.25*:="
 RDEPEND="${DEPEND}
 	$(python_gen_cond_dep '
 		dev-python/setuptools[${PYTHON_USEDEP}]
-	' 3.12)
+	' 3.12 3.13)
 "
 BDEPEND="
 	test? (
-		>=dev-libs/tree-sitter-html-0.23.0[python,${PYTHON_USEDEP}]
-		>=dev-libs/tree-sitter-javascript-0.23.0[python,${PYTHON_USEDEP}]
-		>=dev-libs/tree-sitter-json-0.23.0[python,${PYTHON_USEDEP}]
-		>=dev-libs/tree-sitter-python-0.23.0[python,${PYTHON_USEDEP}]
-		>=dev-libs/tree-sitter-rust-0.23.0[python,${PYTHON_USEDEP}]
+		>=dev-libs/tree-sitter-html-0.23.2[python,${PYTHON_USEDEP}]
+		>=dev-libs/tree-sitter-javascript-0.23.1[python,${PYTHON_USEDEP}]
+		>=dev-libs/tree-sitter-json-0.24.8[python,${PYTHON_USEDEP}]
+		>=dev-libs/tree-sitter-python-0.23.6[python,${PYTHON_USEDEP}]
+		>=dev-libs/tree-sitter-rust-0.23.2[python,${PYTHON_USEDEP}]
 	)
 "
 
@@ -50,12 +50,6 @@ PATCHES=(
 src_unpack() {
 	default
 	rmdir "${S}/tree_sitter/core" || die
-}
-
-src_prepare() {
-	sed -e 's/ts_node_child_containing_descendant/ts_node_child_with_descendant/' \
-		-i tree_sitter/binding/node.c || die
-	distutils-r1_src_prepare
 }
 
 src_test() {
