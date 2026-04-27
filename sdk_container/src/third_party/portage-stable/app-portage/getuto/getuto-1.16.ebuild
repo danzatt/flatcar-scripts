@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -15,18 +15,23 @@ else
 	"
 	S=${WORKDIR}/${PN}-${P}
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 fi
 
-SRC_URI+=" test? ( https://mirror.bytemark.co.uk/gentoo/releases/amd64/binpackages/17.1/x86-64/virtual/libc/libc-1-r1-1.gpkg.tar )"
+SRC_URI+=" test? ( https://mirror.bytemark.co.uk/gentoo/releases/amd64/binpackages/23.0/x86-64/virtual/libc/libc-1-r1-1.gpkg.tar -> ${PN}-23.0-libc-1-r1-1.gpkg.tar )"
 
 LICENSE="GPL-2"
 SLOT="0"
 IUSE="test"
 RESTRICT="!test? ( test )"
 
+# gpg[sequoia] fails w/ 0.13.1 because of missing --lsign-key
+# https://gitlab.com/sequoia-pgp/sequoia-chameleon-gnupg/-/work_items/152
 RDEPEND="
-	app-crypt/gnupg
+	|| (
+		app-alternatives/gpg[reference]
+		app-alternatives/gpg[freepg(-)]
+	)
 	dev-libs/openssl
 	sec-keys/openpgp-keys-gentoo-release
 	sys-apps/gentoo-functions
@@ -41,7 +46,7 @@ src_unpack() {
 	fi
 
 	if use test ; then
-		cp "${DISTDIR}"/libc-1-r1-1.gpkg.tar "${S}" || die
+		cp "${DISTDIR}"/${PN}-23.0-libc-1-r1-1.gpkg.tar "${S}/libc-1-r1-1.gpkg.tar" || die
 	fi
 }
 
