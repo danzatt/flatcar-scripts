@@ -28,6 +28,10 @@ DEPEND="
 BDEPEND="nls? ( sys-devel/gettext )"
 RDEPEND+=" selinux? ( sec-policy/selinux-xfs )"
 
+PATCHES=(
+	"${FILESDIR}"/${PN}-6.17.0-ioctl.patch
+)
+
 src_prepare() {
 	default
 
@@ -58,9 +62,8 @@ src_configure() {
 	# Avoid automagic on libdevmapper (bug #709694)
 	export ac_cv_search_dm_task_create=no
 
-	# bug 903611, 948468
-	use elibc_musl && \
-		append-flags -D_LARGEFILE64_SOURCE -DOVERRIDE_SYSTEM_STATX
+	# bug 903611
+	use elibc_musl && append-flags -D_LARGEFILE64_SOURCE
 
 	# Upstream does NOT support --disable-static anymore,
 	# https://www.spinics.net/lists/linux-xfs/msg30185.html
@@ -83,9 +86,7 @@ src_configure() {
 }
 
 src_compile() {
-	# -j1 for:
-	# gmake[2]: *** No rule to make target '../libhandle/libhandle.la', needed by 'xfs_spaceman'.  Stop.
-	emake V=1 -j1
+	emake V=1
 }
 
 src_install() {
