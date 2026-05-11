@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,7 +7,7 @@ EAPI=8
 # tips & notes.
 
 GUILE_COMPAT=( 2-2 3-0 )
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 inherit flag-o-matic guile-single linux-info python-single-r1 strip-linguas toolchain-funcs
 
 export CTARGET=${CTARGET:-${CHOST}}
@@ -23,7 +23,11 @@ is_cross() { [[ ${CHOST} != ${CTARGET} ]] ; }
 case ${PV} in
 	9999*)
 		# live git tree
-		EGIT_REPO_URI="https://sourceware.org/git/binutils-gdb.git"
+		EGIT_REPO_URI="
+			https://sourceware.org/git/binutils-gdb.git
+			https://git.sr.ht/~sourceware/binutils-gdb
+			https://gitlab.com/x86-binutils/binutils-gdb.git
+		"
 		inherit git-r3
 		SRC_URI=""
 		;;
@@ -33,7 +37,7 @@ case ${PV} in
 		SRC_URI="
 			https://sourceware.org/pub/gdb/snapshots/branch/gdb-weekly-${MY_PV}.tar.xz
 			https://sourceware.org/pub/gdb/snapshots/current/gdb-weekly-${MY_PV}.tar.xz
-			https://dev.gentoo.org/~sam/distfiles/${CATEGORY}/${PN}/gdb-weekly-${MY_PV}.tar.xz
+			https://distfiles.gentoo.org/pub/proj/toolchain/gdb/snapshots/gdb-weekly-${MY_PV}.tar.xz
 		"
 		S="${WORKDIR}/${PN}-${MY_PV}"
 
@@ -47,7 +51,7 @@ case ${PV} in
 		MY_PV="${PV/_p/.}"
 		SRC_URI="
 			https://sourceware.org/pub/gdb/snapshots/branch/gdb-${MY_PV}.tar.xz
-			https://dev.gentoo.org/~sam/distfiles/${CATEGORY}/${PN}/gdb-${MY_PV}.tar.xz
+			https://distfiles.gentoo.org/pub/proj/toolchain/gdb/snapshots/gdb-${MY_PV}.tar.xz
 		"
 		S="${WORKDIR}/${PN}-${MY_PV}"
 		;;
@@ -67,15 +71,14 @@ DESCRIPTION="GNU debugger"
 HOMEPAGE="https://sourceware.org/gdb/"
 SRC_URI="
 	${SRC_URI}
-	${PATCH_DEV:+https://dev.gentoo.org/~${PATCH_DEV}/distfiles/${CATEGORY}/${PN}/${P}-patches-${PATCH_VER}.tar.xz}
-	${PATCH_VER:+mirror://gentoo/${P}-patches-${PATCH_VER}.tar.xz}
+	${PATCH_DEV:+https://distfiles.gentoo.org/pub/proj/toolchain/gdb/patches/${P}-patches-${PATCH_VER}.tar.xz}
 "
 
 LICENSE="GPL-3+ LGPL-2.1+"
 SLOT="0"
-IUSE="babeltrace cet debuginfod guile lzma multitarget nls +python rocm +server sim source-highlight test vanilla xml xxhash zstd"
+IUSE="babeltrace cet +debuginfod guile lzma multitarget nls +python rocm +server sim source-highlight test vanilla +xml xxhash zstd"
 if [[ -n ${REGULAR_RELEASE} ]] ; then
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~x64-macos ~x64-solaris"
 fi
 REQUIRED_USE="
 	guile? ( ${GUILE_REQUIRED_USE} )
@@ -90,7 +93,7 @@ RDEPEND="
 	dev-libs/gmp:=
 	>=sys-libs/ncurses-5.2-r2:=
 	>=sys-libs/readline-7:=
-	sys-libs/zlib
+	virtual/zlib:=
 	babeltrace? ( dev-util/babeltrace:0/1 )
 	debuginfod? (
 		dev-libs/elfutils[debuginfod(-)]
@@ -99,7 +102,7 @@ RDEPEND="
 	python? ( ${PYTHON_DEPS} )
 	guile? ( ${GUILE_DEPS} )
 	xml? ( dev-libs/expat )
-	rocm? ( <dev-libs/rocdbgapi-6.3 )
+	rocm? ( >=dev-libs/rocdbgapi-6.3 )
 	source-highlight? (
 		dev-util/source-highlight
 	)
@@ -131,14 +134,17 @@ PATCHES=(
 pkg_setup() {
 	local CONFIG_CHECK
 
-	if kernel_is -ge 6.11.3 ; then
-		# https://forums.gentoo.org/viewtopic-p-8846891.html
-		#
-		# Either CONFIG_PROC_MEM_ALWAYS_FORCE or CONFIG_PROC_MEM_FORCE_PTRACE
-		# should be okay, but not CONFIG_PROC_MEM_NO_FORCE.
-		CONFIG_CHECK+="
-			~!PROC_MEM_NO_FORCE
-		"
+	if [[ ${CHOST} == *-linux-* ]] ; then
+		if kernel_is -ge 6.11.3 ; then
+			# https://forums.gentoo.org/viewtopic-p-8846891.html
+			# See also PR31520.
+			#
+			# Either CONFIG_PROC_MEM_ALWAYS_FORCE or CONFIG_PROC_MEM_FORCE_PTRACE
+			# should be okay, but not CONFIG_PROC_MEM_NO_FORCE.
+			CONFIG_CHECK+="
+				~!PROC_MEM_NO_FORCE
+			"
+		fi
 	fi
 
 	linux-info_pkg_setup
@@ -157,14 +163,6 @@ src_prepare() {
 	# Avoid using ancient termcap from host on Prefix systems
 	sed -i -e 's/termcap tinfow/tinfow/g' \
 		gdb/configure{.ac,} || die
-	if [[ ${CHOST} == *-solaris* ]] ; then
-		# code relies on C++11, so make sure we get that selected
-		# due to Python 3.11 pymacro.h doing stuff to work around
-		# versioning mess based on the C version, while we're compiling
-		# C++ here, so we need to make it clear we're doing C++11/C11
-		# because Solaris system headers act on these
-		sed -i -e 's/-x c++/-std=c++11/' gdb/Makefile.in || die
-	fi
 }
 
 gdb_branding() {
@@ -335,6 +333,10 @@ src_install() {
 
 	if use python ; then
 		python_optimize "${ED}"/usr/share/gdb/python/gdb
+	fi
+
+	if use kernel_Hurd ; then
+		mv "${ED}"/usr/bin/gcore "${ED}"/usr/bin/gcore.gdb || die
 	fi
 }
 
