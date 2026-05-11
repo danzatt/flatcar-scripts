@@ -1,9 +1,9 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit linux-info meson
+inherit bash-completion-r1 linux-info meson
 
 DESCRIPTION="Unprivileged sandboxing tool, namespaces-powered chroot-like solution"
 HOMEPAGE="https://github.com/containers/bubblewrap/"
@@ -30,6 +30,10 @@ BDEPEND="
 # tests require root privileges
 RESTRICT="test"
 
+PATCHES=(
+	"${FILESDIR}"/${PN}-0.11.2-no-werror.patch
+)
+
 pkg_setup() {
 	if [[ ${MERGE_TYPE} != buildonly ]]; then
 		CONFIG_CHECK="~UTS_NS ~IPC_NS ~USER_NS ~PID_NS ~NET_NS"
@@ -40,8 +44,11 @@ pkg_setup() {
 src_configure() {
 	local emesonargs=(
 		-Dbash_completion=enabled
+		-Dbash_completion_dir="$(get_bashcompdir)"
 		-Dman=enabled
 		-Dtests=false
+		# whether bwrap will run under suid mode
+		-Dsupport_setuid=$(usex suid true false)
 		-Dzsh_completion=enabled
 		$(meson_feature selinux)
 	)
