@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -9,17 +9,17 @@ DISTUTILS_USE_PEP517=standalone
 PYTHON_COMPAT=( python3_{11..14} pypy3_11 )
 PYTHON_REQ_USE='tk?,threads(+)'
 
-inherit distutils-r1 toolchain-funcs virtualx
+inherit distutils-r1 multiprocessing toolchain-funcs virtualx
 
 MY_PN=Pillow
 MY_P=${MY_PN}-${PV}
 
 # upstream always fetches from main
-TEST_IMAGE_COMMIT="716bdc4adaf97601e5b9a31c9be25f8975381ee1"
+TEST_IMAGE_COMMIT="7077675d2cda485d63de4aefe0fefbf6f655c5a0"
 
 DESCRIPTION="Python Imaging Library (fork)"
 HOMEPAGE="
-	https://python-pillow.org/
+	https://python-pillow.github.io/
 	https://github.com/python-pillow/Pillow/
 	https://pypi.org/project/pillow/
 "
@@ -35,7 +35,7 @@ S=${WORKDIR}/${MY_P}
 
 LICENSE="HPND"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~x64-macos"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos"
 IUSE="avif examples imagequant +jpeg jpeg2k lcms test tiff tk truetype webp xcb zlib"
 REQUIRED_USE="test? ( jpeg jpeg2k lcms tiff truetype )"
 RESTRICT="!test? ( test )"
@@ -53,20 +53,20 @@ DEPEND="
 	)
 	webp? ( media-libs/libwebp:= )
 	xcb? ( x11-libs/libxcb )
-	zlib? ( sys-libs/zlib:= )
+	zlib? ( virtual/zlib:= )
 "
 RDEPEND="
 	${DEPEND}
 	dev-python/olefile[${PYTHON_USEDEP}]
 "
 BDEPEND="
+	dev-python/pybind11[${PYTHON_USEDEP}]
 	>=dev-python/setuptools-77[${PYTHON_USEDEP}]
 	dev-python/wheel[${PYTHON_USEDEP}]
 	virtual/pkgconfig
 	test? (
 		dev-python/defusedxml[${PYTHON_USEDEP}]
 		dev-python/packaging[${PYTHON_USEDEP}]
-		dev-python/pytest-timeout[${PYTHON_USEDEP}]
 		|| (
 			media-gfx/imagemagick[png]
 			media-gfx/graphicsmagick[png]
@@ -74,6 +74,7 @@ BDEPEND="
 	)
 "
 
+EPYTEST_PLUGINS=( pytest-timeout )
 EPYTEST_XDIST=1
 distutils_enable_tests pytest
 
@@ -81,8 +82,6 @@ src_prepare() {
 	local PATCHES=(
 		# https://github.com/python-pillow/pillow/pull/7634
 		"${FILESDIR}/${PN}-10.2.0-cross.patch"
-		# https://github.com/python-pillow/Pillow/pull/8948
-		"${FILESDIR}/${PN}-11.2.1-py314.patch"
 	)
 
 	distutils-r1_src_prepare
@@ -124,6 +123,7 @@ python_configure_all() {
 	fi
 
 	tc-export PKG_CONFIG
+	export MAX_CONCURRENCY=$(makeopts_jobs)
 }
 
 src_test() {
@@ -150,9 +150,9 @@ python_test() {
 	esac
 
 	"${EPYTHON}" selftest.py --installed || die "selftest failed with ${EPYTHON}"
-	local -x PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 	# leak tests are fragile and broken under xdist
-	epytest -k "not leak" -p timeout || die "Tests failed with ${EPYTHON}"
+	# nonfatal implied by xvfb
+	nonfatal epytest -k "not leak" || die "Tests failed with ${EPYTHON}"
 }
 
 python_install() {
