@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,7 +7,7 @@ MODULES_OPTIONAL_IUSE=+modules
 inherit desktop dot-a eapi9-pipestatus flag-o-matic linux-mod-r1 multilib
 inherit readme.gentoo-r1 systemd toolchain-funcs unpacker user-info
 
-MODULES_KERNEL_MAX=6.16
+MODULES_KERNEL_MAX=6.18
 NV_URI="https://download.nvidia.com/XFree86/"
 
 DESCRIPTION="NVIDIA Accelerated Graphics Driver"
@@ -24,9 +24,8 @@ S=${WORKDIR}
 
 LICENSE="NVIDIA-2023 Apache-2.0 BSD BSD-2 GPL-2 MIT ZLIB curl openssl"
 SLOT="0/${PV%%.*}"
-KEYWORDS="-* amd64 ~arm64"
+KEYWORDS="-* ~amd64 ~arm64"
 IUSE="+X abi_x86_32 abi_x86_64 kernel-open persistenced powerd +static-libs +tools wayland"
-REQUIRED_USE="kernel-open? ( modules )"
 
 COMMON_DEPEND="
 	acct-group/video
@@ -51,7 +50,10 @@ COMMON_DEPEND="
 "
 RDEPEND="
 	${COMMON_DEPEND}
-	dev-libs/openssl:0/3
+	|| (
+		dev-libs/openssl-compat:3
+		dev-libs/openssl:0/3
+	)
 	sys-libs/glibc
 	X? (
 		media-libs/libglvnd[X,abi_x86_32(-)?]
@@ -107,6 +109,7 @@ pkg_setup() {
 		~!PREEMPT_RT
 		~!SLUB_DEBUG_ON
 		!DEBUG_MUTEXES
+		$(usev amd64 'X86_PAT')
 		$(usev powerd '~CPU_FREQ')
 	"
 
@@ -116,18 +119,11 @@ pkg_setup() {
 	selection of a DRM device even if unused, e.g. CONFIG_DRM_AMDGPU=m or
 	DRM_I915=y, DRM_NOUVEAU=m also acceptable if a module and not built-in."
 
-	local ERROR_X86_KERNEL_IBT="CONFIG_X86_KERNEL_IBT: is set and, if the CPU supports the feature,
-	this *could* lead to modules load failure with ENDBR errors, or to
-	broken CUDA/NVENC. Please ignore if not having issues, but otherwise
-	try to unset or pass ibt=off to the kernel's command line." #911142
-	use kernel-open || CONFIG_CHECK+=" ~!X86_KERNEL_IBT"
-
-	use amd64 && kernel_is -ge 5 8 && CONFIG_CHECK+=" X86_PAT" #817764
-
 	use kernel-open && CONFIG_CHECK+=" MMU_NOTIFIER" #843827
 	local ERROR_MMU_NOTIFIER="CONFIG_MMU_NOTIFIER: is not set but needed to build with USE=kernel-open.
 	Cannot be directly selected in the kernel's menuconfig, and may need
-	selection of another option that requires it such as CONFIG_KVM."
+	selection of another option that requires it such as CONFIG_AMD_IOMMU=y,
+	or DRM_I915=m (among others, consult the kernel config's help)."
 
 	local ERROR_PREEMPT_RT="CONFIG_PREEMPT_RT: is set but is unsupported by NVIDIA upstream and
 	will fail to build unless the env var IGNORE_PREEMPT_RT_PRESENCE=1 is
@@ -182,6 +178,14 @@ src_compile() {
 	local xnvflags=-fPIC #840389
 	tc-is-lto && xnvflags+=" $(test-flags-CC -ffat-lto-objects)"
 
+	# same as uname -m
+	local target_arch
+	case ${ARCH} in
+		amd64) target_arch=x86_64;;
+		arm64) target_arch=aarch64;;
+		*) die "Unrecognised architecture: ${ARCH}";;
+	esac
+
 	NV_ARGS=(
 		PREFIX="${EPREFIX}"/usr
 		HOST_CC="$(tc-getBUILD_CC)"
@@ -189,17 +193,13 @@ src_compile() {
 		BUILD_GTK2LIB=
 		NV_USE_BUNDLED_LIBJANSSON=0
 		NV_VERBOSE=1 DO_STRIP= MANPAGE_GZIP= OUTPUTDIR=out
+		TARGET_ARCH="${target_arch}"
 		WAYLAND_AVAILABLE=$(usex wayland 1 0)
 		XNVCTRL_CFLAGS="${xnvflags}"
 	)
 
 	if use modules; then
 		local o_cflags=${CFLAGS} o_cxxflags=${CXXFLAGS} o_ldflags=${LDFLAGS}
-
-		# conftest.sh is broken with c23 due to func() changing meaning,
-		# and then fails later due to ealier misdetections
-		# TODO: try without now and then + drop modargs' CC= (bug #944092)
-		KERNEL_CC+=" -std=gnu17"
 
 		local modlistargs=video:kernel
 		if use kernel-open; then
@@ -210,13 +210,17 @@ src_compile() {
 			filter-flags -fno-plt #912949
 			filter-lto
 			CC=${KERNEL_CC} CXX=${KERNEL_CXX} strip-unsupported-flags
+
+			# the "blob" uses C++ which is an issue if there is debug symbols
+			# when running pahole
+			linux_chkconfig_present DEBUG_INFO_BTF_MODULES && append-flags -g0
 		fi
 
 		local modlist=( nvidia{,-drm,-modeset,-peermem,-uvm}=${modlistargs} )
 		local modargs=(
-			CC="${KERNEL_CC}" # needed for above gnu17 workaround
 			IGNORE_CC_MISMATCH=yes NV_VERBOSE=1
 			SYSOUT="${KV_OUT_DIR}" SYSSRC="${KV_DIR}"
+			TARGET_ARCH="${target_arch}"
 
 			# kernel takes "x86" and "x86_64" as meaning the same, but nvidia
 			# makes the distinction (since 550.135) and is not happy with "x86"
@@ -523,7 +527,7 @@ pkg_postinst() {
 
 	if [[ -r /proc/driver/nvidia/version &&
 		$(</proc/driver/nvidia/version) != *"  ${PV}  "* ]]; then
-		ewarn "Currently loaded NVIDIA modules do not match the newly installed"
+		ewarn "\nCurrently loaded NVIDIA modules do not match the newly installed"
 		ewarn "libraries and may prevent launching GPU-accelerated applications."
 		if use modules; then
 			ewarn "Easiest way to fix this is normally to reboot. If still run into issues"
@@ -534,16 +538,14 @@ pkg_postinst() {
 	fi
 
 	if [[ $(</proc/cmdline) == *slub_debug=[!-]* ]]; then
-		ewarn "Detected that the current kernel command line is using 'slub_debug=',"
+		ewarn "\nDetected that the current kernel command line is using 'slub_debug=',"
 		ewarn "this may lead to system instability/freezes with this version of"
 		ewarn "${PN}. Bug: https://bugs.gentoo.org/796329"
 	fi
 
 	if [[ -v NV_LEGACY_MASK ]]; then
-		ewarn
-		ewarn "***WARNING***"
-		ewarn
-		ewarn "You are installing a version of ${PN} known not to work"
+		ewarn "\n***WARNING***"
+		ewarn "\nYou are installing a version of ${PN} known not to work"
 		ewarn "with a GPU of the current system. If unwanted, add the mask:"
 		if [[ -d ${EROOT}/etc/portage/package.mask ]]; then
 			ewarn "  echo '${NV_LEGACY_MASK}' > ${EROOT}/etc/portage/package.mask/${PN}"
@@ -556,20 +558,17 @@ pkg_postinst() {
 		ewarn "[2] https://wiki.gentoo.org/wiki/Nouveau"
 	fi
 
-	if use kernel-open; then
-		ewarn
-		ewarn "Open source variant of ${PN} was selected, be warned it is experimental"
+	if use kernel-open && use modules; then
+		ewarn "\nOpen source variant of ${PN} was selected, be warned it is experimental"
 		ewarn "and only for modern GPUs (e.g. GTX 1650+). Try to disable if run into issues."
 		ewarn "Please also see: ${EROOT}/usr/share/doc/${PF}/html/kernel_open.html"
 	fi
 
 	if use wayland && use modules && [[ ! -v NV_HAD_WAYLAND ]]; then
-		elog
-		elog "With USE=wayland, this version of ${PN} sets nvidia-drm.modeset=1"
+		elog "\nWith USE=wayland, this version of ${PN} sets nvidia-drm.modeset=1"
 		elog "in '${EROOT}/etc/modprobe.d/nvidia.conf'. This feature is considered"
 		elog "experimental but is required for wayland."
-		elog
-		elog "If you experience issues, either disable wayland or edit nvidia.conf."
+		elog "\nIf you experience issues, either disable wayland or edit nvidia.conf."
 		elog "Of note, may possibly cause issues with SLI and Reverse PRIME."
 	fi
 }
