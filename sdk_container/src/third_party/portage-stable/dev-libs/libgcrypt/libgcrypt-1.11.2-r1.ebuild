@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -13,7 +13,7 @@ SRC_URI+=" verify-sig? ( mirror://gnupg/${PN}/${P}.tar.bz2.sig )"
 
 LICENSE="LGPL-2.1+ GPL-2+ MIT"
 SLOT="0/20" # subslot = soname major version
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="+asm doc +getentropy static-libs"
 IUSE+=" cpu_flags_arm_neon cpu_flags_arm_aes cpu_flags_arm_sha1 cpu_flags_arm_sha2 cpu_flags_arm_sve"
 IUSE+=" cpu_flags_ppc_altivec cpu_flags_ppc_vsx2 cpu_flags_ppc_vsx3"
@@ -51,9 +51,6 @@ BDEPEND="
 PATCHES=(
 	"${FILESDIR}"/${PN}-multilib-syspath.patch
 	"${FILESDIR}"/${PN}-powerpc-darwin.patch
-	"${FILESDIR}"/${P}-s390x.patch
-	"${FILESDIR}"/${P}-o-flag-munging.patch
-	"${FILESDIR}"/${P}-arm.patch
 )
 
 MULTILIB_CHOST_TOOLS=(
@@ -87,9 +84,15 @@ src_prepare() {
 }
 
 src_configure() {
-	# Sensitive to optimisation; parts of the codebase are built with
-	# -O0 already. Don't risk it with UB.
-	strip-flags
+	# Temporary workaround for a build failure (known gcc issue):
+	#  * https://bugs.gentoo.org/956605
+	#  * https://gcc.gnu.org/PR110812
+	use riscv && filter-lto
+
+	# Temporary workaround for mfpmath=sse on x86 causing issues when -msse is
+	# stripped as it's not clear cut on how to handle in flag-o-matic we can at
+	# least solve it the ebuild see https://bugs.gentoo.org/959349
+	use x86 && filter-flags -mfpmath=sse
 
 	# Hardcodes the path to FGREP in libgcrypt-config
 	export ac_cv_path_SED="sed"
@@ -141,6 +144,7 @@ multilib_src_configure() {
 		$(use asm || echo "--disable-asm")
 
 		GPG_ERROR_CONFIG="${ESYSROOT}/usr/bin/${CHOST}-gpg-error-config"
+		GPGRT_CONFIG="${ESYSROOT}/usr/bin/${CHOST}-gpgrt-config"
 	)
 
 	if use kernel_linux; then
