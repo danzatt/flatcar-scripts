@@ -1,4 +1,4 @@
-# Copyright 2021-2024 Gentoo Authors
+# Copyright 2021-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -12,12 +12,16 @@ SRC_URI="https://gitlab.freedesktop.org/realmd/adcli/-/archive/${PV}/${P}.tar.bz
 LICENSE="LGPL-2.1"
 SLOT="0"
 KEYWORDS="amd64 ~arm64 ~x86"
-IUSE="doc"
+IUSE="doc netapi selinux"
 
 DEPEND="
 	app-crypt/mit-krb5
-	net-nds/openldap:=[sasl]"
-RDEPEND="${DEPEND}"
+	net-nds/openldap:=[sasl]
+	netapi? ( net-fs/samba )"
+# still pull in kerberos policies, provides labelling and might some day
+# actually bring policies which are currently still internal (see src_configure)
+RDEPEND="${DEPEND}
+	selinux? ( sec-policy/selinux-kerberos )"
 BDEPEND="
 	doc? (
 		app-text/docbook-xml-dtd:4.3
@@ -31,7 +35,11 @@ src_prepare() {
 }
 
 src_configure() {
+	# builds its own policy, no selinux until policies are official
+	local myconf="--disable-selinux-support"
 	econf \
+		${myconf} \
 		$(use_enable doc) \
+		$(use_enable netapi offline-join-support) \
 		KRB5_CONFIG="${ESYSROOT}"/usr/bin/krb5-config
 }
