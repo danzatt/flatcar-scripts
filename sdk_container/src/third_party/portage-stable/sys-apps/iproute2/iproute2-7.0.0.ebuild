@@ -1,16 +1,16 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit edo toolchain-funcs flag-o-matic
+inherit dot-a edo toolchain-funcs flag-o-matic
 
 if [[ ${PV} == 9999 ]] ; then
 	EGIT_REPO_URI="https://git.kernel.org/pub/scm/linux/kernel/git/shemminger/iproute2.git"
 	inherit git-r3
 else
 	SRC_URI="https://www.kernel.org/pub/linux/utils/net/${PN}/${P}.tar.xz"
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 fi
 
 DESCRIPTION="kernel routing and traffic control utilities"
@@ -47,12 +47,12 @@ BDEPEND="
 "
 
 PATCHES=(
-	"${FILESDIR}"/${PN}-6.10.0-musl-1.patch # bug #936234
 	"${FILESDIR}"/${PN}-6.10.0-musl-2.patch # bug #926341
-	"${FILESDIR}"/${PN}-6.12.0-musl-3.patch # bug #946088
 	"${FILESDIR}"/${PN}-6.9.0-mtu.patch # bug #291907
 	"${FILESDIR}"/${PN}-6.8.0-configure-nomagic-nolibbsd.patch # bug #643722 & #911727
 	"${FILESDIR}"/${PN}-6.8.0-disable-libbsd-fallback.patch # bug #911727
+	"${FILESDIR}"/${PN}-6.18.0-netshaper.patch # bug #967691
+	"${FILESDIR}"/${PN}-6.19.0-dpll.patch # bug #967691
 )
 
 src_prepare() {
@@ -88,6 +88,10 @@ src_prepare() {
 
 src_configure() {
 	tc-export AR CC PKG_CONFIG
+	lto-guarantee-fat
+
+	tc-export_build_env
+	export CBUILD_CFLAGS=${BUILD_CFLAGS}
 
 	# This sure is ugly. Should probably move into toolchain-funcs at some point.
 	local setns
@@ -212,4 +216,5 @@ src_install() {
 	elif [[ -d "${ED}"/var/lib/arpd ]]; then
 		rmdir --ignore-fail-on-non-empty -p "${ED}"/var/lib/arpd || die
 	fi
+	strip-lto-bytecode
 }
