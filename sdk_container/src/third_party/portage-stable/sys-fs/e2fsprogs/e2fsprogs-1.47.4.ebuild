@@ -1,17 +1,21 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit multilib-minimal systemd toolchain-funcs udev
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/tytso.asc
+inherit multilib-minimal systemd toolchain-funcs udev verify-sig
 
 DESCRIPTION="Standard EXT2/EXT3/EXT4 filesystem utilities"
 HOMEPAGE="http://e2fsprogs.sourceforge.net/"
-SRC_URI="https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${PV}/${P}.tar.xz"
+SRC_URI="
+	https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${PV}/${P}.tar.xz
+	verify-sig? ( https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${PV}/${P}.tar.sign )
+"
 
 LICENSE="GPL-2 BSD"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="archive cron fuse nls static-libs test +tools"
 RESTRICT="!test? ( test )"
 
@@ -33,6 +37,7 @@ BDEPEND="
 	sys-apps/texinfo
 	virtual/pkgconfig
 	nls? ( sys-devel/gettext )
+	verify-sig? ( sec-keys/openpgp-keys-tytso )
 "
 
 MULTILIB_WRAPPED_HEADERS=(
@@ -41,12 +46,19 @@ MULTILIB_WRAPPED_HEADERS=(
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-1.42.13-fix-build-cflags.patch # bug #516854
-	# We can drop this metadata patch after 6 months or so to let initramfses
-	# upgrade. See bug #904093 and bug #904048.
-	"${FILESDIR}"/${PN}-1.47.0-disable-metadata_csum_seed-and-orphan_file-by-default.patch
 
 	# Upstream patches (can usually removed with next version bump)
 )
+
+src_unpack() {
+	# Upstream sign the decompressed .tar
+	if use verify-sig ; then
+		verify-sig_uncompress_verify_unpack "${DISTDIR}"/${P}.tar.xz \
+			"${DISTDIR}"/${P}.tar.sign
+	else
+		default
+	fi
+}
 
 src_prepare() {
 	default
@@ -56,11 +68,6 @@ src_prepare() {
 	# Get rid of doc -- we don't use them. This also prevents a sandbox
 	# violation due to mktexfmt invocation
 	rm -r doc || die "Failed to remove doc dir"
-
-	cat <<-'EOF' > tests/m_rootdir_acl/script || die
-	echo "$test_name: $test_description: skipped (bgo#905221, fails on btrfs)"
-	return 0
-	EOF
 
 	# Prevent included intl cruft from building, bug #81096
 	sed -i -r \
@@ -113,7 +120,7 @@ multilib_src_configure() {
 }
 
 multilib_src_compile() {
-	# Parallel make issue #936493
+	# Parallel make issue (bug #936493)
 	emake -C lib/et V=1 compile_et
 	emake -C lib/ext2fs V=1 ext2_err.h
 
