@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # Keep them sorted
@@ -97,6 +97,7 @@ freetds - Add support for the TDS protocol to connect to MSSQL/Sybase databases
 ftp - Add FTP (File Transfer Protocol) support
 gd - Add support for media-libs/gd (to generate graphics on the fly)
 gdbm - Add support for sys-libs/gdbm (GNU database libraries)
+generic-uki - Install a generic initramfs and Unified Kernel Image alongside the distribution kernel
 geoip - Add geoip support for country and city lookup based on IPs
 geolocation - Enable physical position determination
 ggi - Add support for media-libs/libggi (non-X video api/drivers)
@@ -140,6 +141,7 @@ ieee1394 - Enable FireWire/iLink IEEE1394 support (dv, camera, ...)
 imagemagick - Enable optional support for the ImageMagick or GraphicsMagick image converter
 imap - Add support for IMAP (Internet Mail Application Protocol)
 imlib - Add support for imlib, an image loading and rendering library
+index64 - Enable 64-bit array indexing support
 infiniband - Enable Infiniband RDMA transport support
 initramfs - Include kernel modules in the initramfs, and re-install the kernel (only effective for distribution kernels)
 inotify - Enable inotify filesystem monitoring support
@@ -325,7 +327,6 @@ strip - Allow symbol stripping to be performed by the ebuild for special files
 subversion - Enable subversion (version control system) support
 suid - Enable setuid root program(s)
 svg - Add support for SVG (Scalable Vector Graphics)
-svga - Add support for SVGAlib (graphics library)
 symlink - Force kernel ebuilds to automatically update the /usr/src/linux symlink
 syslog - Enable support for syslog
 systemd - Enable use of systemd-specific libraries and features like socket activation or session tracking
@@ -363,6 +364,7 @@ valgrind - Enable annotations for accuracy. May slow down runtime slightly. Safe
 vanilla - Do not add extra patches which change default behaviour; DO NOT USE THIS ON A GLOBAL SCALE as the severity of the meaning changes drastically
 vcd - Video CD support
 vdpau - Enable the Video Decode and Presentation API for Unix acceleration interface
+verify-provenance - Verify provenance of PyPI distfiles (verifies that the artifact comes from upstream source repository)
 verify-sig - Verify upstream signatures on distfiles
 vhosts - Add support for installing web-based applications into a virtual-hosting environment
 videos - Install optional video files (used in some games)
@@ -378,7 +380,7 @@ webp - Add support for the WebP image format
 wifi - Enable wireless network functions
 wmf - Add support for the Windows Metafile vector image format
 wxwidgets - Add support for wxWidgets/wxGTK GUI toolkit
-x264 - Enable h264 encoding using x264
+x264 - Enable H.264 encoding using x264
 xattr - Add support for extended attributes (filesystem-stored metadata)
 xcb - Support the X C-language Binding, a replacement for Xlib
 xcomposite - Enable support for the Xorg composite extension
