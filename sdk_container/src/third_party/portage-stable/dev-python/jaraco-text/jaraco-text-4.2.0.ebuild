@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # please keep this ebuild at EAPI 8 -- sys-apps/portage dep
@@ -6,7 +6,7 @@ EAPI=8
 
 DISTUTILS_USE_PEP517=flit
 PYPI_PN=${PN/-/.}
-PYTHON_COMPAT=( python3_{11..14} python3_{13,14}t pypy3_11 )
+PYTHON_COMPAT=( python3_{11..15} python3_{13..15}t pypy3_11 )
 
 inherit distutils-r1 pypi
 
@@ -18,13 +18,14 @@ HOMEPAGE="
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 
 RDEPEND="
 	>=dev-python/jaraco-context-4.1.1-r1[${PYTHON_USEDEP}]
 	>=dev-python/jaraco-functools-3.5.0-r1[${PYTHON_USEDEP}]
 "
 
+EPYTEST_PLUGINS=()
 distutils_enable_tests pytest
 
 src_configure() {
@@ -46,11 +47,4 @@ src_configure() {
 	# and since there are dashes in their names, they can't be imported
 	# anyway
 	rm jaraco/text/*-*.py || die
-}
-
-python_install() {
-	distutils-r1_python_install
-	# rename to workaround a bug in pkg_resources
-	# https://bugs.gentoo.org/834522
-	mv "${D}$(python_get_sitedir)"/jaraco{_,.}text-${PV}.dist-info || die
 }
