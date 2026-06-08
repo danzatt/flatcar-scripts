@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,7 +7,7 @@ DISTUTILS_EXT=1
 DISTUTILS_USE_PEP517=setuptools
 PYTHON_FULLY_TESTED=( python3_{11..14} )
 PYTHON_TESTED=( "${PYTHON_FULLY_TESTED[@]}" pypy3_11 )
-PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" python3_{13,14}t )
+PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" python3_15 python3_{13..15}t )
 PYTHON_REQ_USE="threads(+)"
 
 inherit distutils-r1 multiprocessing pypi toolchain-funcs
@@ -21,7 +21,7 @@ HOMEPAGE="
 
 LICENSE="Apache-2.0"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="test test-full"
 RESTRICT="!test? ( test )"
 
@@ -37,16 +37,15 @@ BDEPEND="
 "
 
 PATCHES=(
-	"${FILESDIR}/${PN}-0.29.22-spawn-multiprocessing.patch"
 	"${FILESDIR}/${PN}-0.29.23-pythran-parallel-install.patch"
-	# https://github.com/cython/cython/pull/6957
-	"${FILESDIR}/${P}-odr.patch"
 )
 
-distutils_enable_sphinx docs \
-	dev-python/jinja2 \
-	dev-python/sphinx-issues \
-	dev-python/sphinx-tabs
+# disabled to workaround pkgcheck performance issue
+# https://github.com/pkgcore/pkgcheck/issues/782
+#distutils_enable_sphinx docs \
+#	dev-python/jinja2 \
+#	dev-python/sphinx-issues \
+#	dev-python/sphinx-tabs
 
 python_compile() {
 	# Python gets confused when it is in sys.path before build.
@@ -71,6 +70,10 @@ python_test() {
 
 	# Needed to avoid confusing cache tests
 	unset CYTHON_FORCE_REGEN
+
+	# uses $(nproc) to additionally parallelize many OpenMP-based jobs,
+	# leading to overcommitting
+	local -x OMP_NUM_THREADS=1
 
 	tc-export CC
 
@@ -108,7 +111,8 @@ python_test() {
 			--exclude 'run.test_patma*'
 			# Slight output difference (missing '<')
 			--exclude 'run.cpp_exception_ptr_just_handler'
-
+			# No freethreading here
+			--exclude 'run.freethreaded_list_indexing_stress_test'
 		)
 	fi
 
