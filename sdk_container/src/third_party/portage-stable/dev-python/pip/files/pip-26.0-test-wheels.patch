@@ -1,4 +1,4 @@
-From f172db76c62cf8e00fb547828c43cd8bf78a31ef Mon Sep 17 00:00:00 2001
+From f8f2b7760bfc8d64607b3bf2cdc9867fcce8276a Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Micha=C5=82=20G=C3=B3rny?= <mgorny@gentoo.org>
 Date: Thu, 31 Jul 2025 05:10:08 +0200
 Subject: [PATCH] Disable coverage & socket plugins inside test venvs
@@ -8,11 +8,11 @@ Subject: [PATCH] Disable coverage & socket plugins inside test venvs
  1 file changed, 33 deletions(-)
 
 diff --git a/tests/conftest.py b/tests/conftest.py
-index c98b87117..f4ef35a7e 100644
+index 1b65e9d57..69b6f38c9 100644
 --- a/tests/conftest.py
 +++ b/tests/conftest.py
-@@ -444,25 +444,6 @@ def wheel_install(tmpdir_factory: pytest.TempPathFactory, common_wheels: Path) -
-     return _common_wheel_editable_install(tmpdir_factory, common_wheels, "wheel")
+@@ -440,25 +440,6 @@ def setuptools_install(
+     return _common_wheel_editable_install(tmpdir_factory, common_wheels, "setuptools")
  
  
 -@pytest.fixture(scope="session")
@@ -37,20 +37,19 @@ index c98b87117..f4ef35a7e 100644
  def install_pth_link(
      venv: VirtualEnvironment, project_name: str, lib_dir: Path
  ) -> None:
-@@ -479,8 +460,6 @@ def virtualenv_template(
+@@ -474,8 +455,6 @@ def virtualenv_template(
+     pip_src: Path,
      pip_editable_parts: tuple[Path, ...],
      setuptools_install: Path,
-     wheel_install: Path,
 -    coverage_install: Path,
 -    socket_install: Path,
  ) -> VirtualEnvironment:
      venv_type: VirtualEnvironmentType
      if request.config.getoption("--use-venv"):
-@@ -494,11 +473,7 @@ def virtualenv_template(
+@@ -489,10 +468,6 @@ def virtualenv_template(
  
-     # Install setuptools, wheel, pytest-subket, and pip.
+     # Install setuptools, pytest-subket, and pip.
      install_pth_link(venv, "setuptools", setuptools_install)
-     install_pth_link(venv, "wheel", wheel_install)
 -    install_pth_link(venv, "pytest_subket", socket_install)
 -    # Also copy pytest-subket's .pth file so it can intercept socket calls.
 -    with open(venv.site / "pytest_socket.pth", "w") as f:
@@ -58,16 +57,17 @@ index c98b87117..f4ef35a7e 100644
  
      pth, dist_info = pip_editable_parts
  
-@@ -511,13 +485,6 @@ def virtualenv_template(
+@@ -505,14 +480,6 @@ def virtualenv_template(
      # detects changed files.
      venv.site.joinpath("easy-install.pth").touch()
  
--    # Install coverage and pth file for executing it in any spawned processes
--    # in this virtual environment.
--    install_pth_link(venv, "coverage", coverage_install)
--    # zz prefix ensures the file is after easy-install.pth.
--    with open(venv.site / "zz-coverage-helper.pth", "a") as f:
--        f.write("import coverage; coverage.process_startup()")
+-    if request.config.getoption("--cov"):
+-        # Install coverage and pth file for executing it in any spawned processes
+-        # in this virtual environment.
+-        install_pth_link(venv, "coverage", coverage_install)
+-        # zz prefix ensures the file is after easy-install.pth.
+-        with open(venv.site / "zz-coverage-helper.pth", "a") as f:
+-            f.write("import coverage; coverage.process_startup()")
 -
      # Drop (non-relocatable) launchers.
      for exe in os.listdir(venv.bin):
