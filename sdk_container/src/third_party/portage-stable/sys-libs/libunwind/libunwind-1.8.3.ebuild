@@ -1,4 +1,4 @@
-# Copyright 2005-2024 Gentoo Authors
+# Copyright 2005-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -13,7 +13,7 @@ LIBUNWIND_DOCS_VERSION=1.8.0
 # Default to generating docs (inc. man pages) if no prebuilt; overridden later
 LIBUNWIND_DOCS_USEFLAG="+doc"
 
-inherit libtool multilib-minimal
+inherit autotools libtool multilib-minimal
 
 DESCRIPTION="Portable and efficient API to determine the call-chain of a program"
 HOMEPAGE="https://savannah.nongnu.org/projects/libunwind"
@@ -31,7 +31,7 @@ else
 	S="${WORKDIR}"/${P/_rc/-rc}
 
 	if [[ ${PV} != *_rc* ]] ; then
-		KEYWORDS="amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 -sparc x86 ~amd64-linux ~x86-linux"
+		KEYWORDS="amd64 ~arm ~arm64 ~hppa ~loong ~mips ppc ~ppc64 ~riscv ~s390 -sparc x86"
 	fi
 fi
 
@@ -49,7 +49,7 @@ BDEPEND="
 "
 RDEPEND="
 	lzma? ( app-arch/xz-utils[static-libs?,${MULTILIB_USEDEP}] )
-	zlib? ( sys-libs/zlib[static-libs?,${MULTILIB_USEDEP}] )
+	zlib? ( virtual/zlib:=[static-libs?,${MULTILIB_USEDEP}] )
 "
 # We just use the header from libatomic.
 DEPEND="
@@ -75,16 +75,23 @@ MULTILIB_WRAPPED_HEADERS=(
 	/usr/include/libunwind-x86_64.h
 )
 
+PATCHES=(
+	"${FILESDIR}"/${P}-typo.patch
+)
+
 src_prepare() {
 	default
 
 	chmod +x src/ia64/mk_cursor_i || die
 
-	if [[ ${PV} == 9999 ]] ; then
-		eautoreconf
-	else
-		elibtoolize
-	fi
+	#if [[ ${PV} == 9999 ]] ; then
+	#	eautoreconf
+	#else
+	#	elibtoolize
+	#fi
+
+	# For typo.patch
+	eautoreconf
 }
 
 multilib_src_configure() {
