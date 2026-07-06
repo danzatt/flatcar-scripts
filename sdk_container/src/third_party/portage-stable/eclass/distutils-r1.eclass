@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: distutils-r1.eclass
@@ -94,38 +94,16 @@
 # @PRE_INHERIT
 # @REQUIRED
 # @DESCRIPTION:
-# Specifies the PEP517 build system used for the package.  Currently,
-# the following values are supported:
+# Specifies the PEP517 build system used for the package.  Normally,
+# the values match the name of the package providing this backend.
 #
-# - flit - flit-core backend
+# The currently supported backends are: flit-core, flit-scm, hatchling,
+# jupyter-packaging, maturin, meson-python, pbr, pdm-backend,
+# poetry-core, scikit-build-core, setuptools, sip, uv-build.
 #
-# - flit_scm - flit_scm backend
-#
-# - hatchling - hatchling backend (from hatch)
-#
-# - jupyter - jupyter_packaging backend
-#
-# - maturin - maturin backend
-#
-# - meson-python - meson-python (mesonpy) backend
-#
-# - no - no PEP517 build system (see below)
-#
-# - pbr - pbr backend
-#
-# - pdm-backend - pdm.backend backend
-#
-# - poetry - poetry-core backend
-#
-# - scikit-build-core - scikit-build-core backend
-#
-# - setuptools - distutils or setuptools (incl. legacy mode)
-#
-# - sip - sipbuild backend
-#
-# - standalone - standalone/local build systems
-#
-# - uv-build - uv-build backend (using dev-python/uv)
+# Additionally, two special values are supported: "no" to indicate
+# no PEP517 build system, and "standalone" to indicate a standalone
+# (local to the package) build backend.  Both are described further on.
 #
 # The variable needs to be set before the inherit line.  If another
 # value than "standalone" and "no" is used, The eclass adds appropriate
@@ -217,7 +195,7 @@ if [[ -z ${_DISTUTILS_R1_ECLASS} ]]; then
 _DISTUTILS_R1_ECLASS=1
 
 case ${EAPI} in
-	8) ;;
+	8) inherit eapi9-pipestatus ;;
 	*) die "${ECLASS}: EAPI ${EAPI:-0} not supported" ;;
 esac
 
@@ -235,30 +213,40 @@ else
 fi
 
 _distutils_set_globals() {
+	# convert deprecated values
+	if [[ ${EAPI} == [78] ]]; then
+		case ${DISTUTILS_USE_PEP517} in
+			flit)
+				DISTUTILS_USE_PEP517=flit-core
+				;;
+			flit_scm)
+				DISTUTILS_USE_PEP517=flit-scm
+				;;
+			jupyter)
+				DISTUTILS_USE_PEP517=jupyter-packaging
+				;;
+			poetry)
+				DISTUTILS_USE_PEP517=poetry-core
+				;;
+		esac
+	fi
+
 	local rdep bdep
 	bdep='
 		>=dev-python/gpep517-16[${PYTHON_USEDEP}]
 	'
 	case ${DISTUTILS_USE_PEP517} in
-		flit)
-			bdep+='
-				>=dev-python/flit-core-3.11.0[${PYTHON_USEDEP}]
-			'
+		flit-core|hatchling|jupyter-packaging|meson-python|pbr|pdm-backend)
+			;&
+		poetry-core|scikit-build-core|setuptools|sip|uv-build)
+			bdep+="
+				dev-python/${DISTUTILS_USE_PEP517}[\${PYTHON_USEDEP}]
+			"
 			;;
-		flit_scm)
+		flit-scm)
 			bdep+='
 				>=dev-python/flit-core-3.11.0[${PYTHON_USEDEP}]
 				>=dev-python/flit-scm-1.7.0[${PYTHON_USEDEP}]
-			'
-			;;
-		hatchling)
-			bdep+='
-				>=dev-python/hatchling-1.27.0[${PYTHON_USEDEP}]
-			'
-			;;
-		jupyter)
-			bdep+='
-				>=dev-python/jupyter-packaging-0.12.3[${PYTHON_USEDEP}]
 			'
 			;;
 		maturin)
@@ -270,47 +258,7 @@ _distutils_set_globals() {
 			# undo the generic deps added above
 			bdep=
 			;;
-		meson-python)
-			bdep+='
-				>=dev-python/meson-python-0.17.1[${PYTHON_USEDEP}]
-			'
-			;;
-		pbr)
-			bdep+='
-				>=dev-python/pbr-6.1.1[${PYTHON_USEDEP}]
-			'
-			;;
-		pdm-backend)
-			bdep+='
-				>=dev-python/pdm-backend-2.4.3[${PYTHON_USEDEP}]
-			'
-			;;
-		poetry)
-			bdep+='
-				>=dev-python/poetry-core-2.1.1[${PYTHON_USEDEP}]
-			'
-			;;
-		scikit-build-core)
-			bdep+='
-				>=dev-python/scikit-build-core-0.11.5[${PYTHON_USEDEP}]
-			'
-			;;
-		setuptools)
-			bdep+='
-				>=dev-python/setuptools-78.1.0[${PYTHON_USEDEP}]
-			'
-			;;
-		sip)
-			bdep+='
-				>=dev-python/sip-6.10.0[${PYTHON_USEDEP}]
-			'
-			;;
 		standalone)
-			;;
-		uv-build)
-			bdep+='
-				dev-python/uv-build[${PYTHON_USEDEP}]
-			'
 			;;
 		*)
 			die "Unknown DISTUTILS_USE_PEP517=${DISTUTILS_USE_PEP517}"
@@ -412,6 +360,28 @@ unset -f _distutils_set_globals
 # @CODE
 # python_configure_all() {
 # 	DISTUTILS_ARGS=( --enable-my-hidden-option )
+# }
+# @CODE
+
+# @ECLASS_VARIABLE: DISTUTILS_CONFIG_SETTINGS_JSON
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# The JSON object deserialized into config_settings dictionary passed
+# to the build backend.
+#
+# Allowed only for DISTUTILS_USE_PEP517=standalone.  Use DISTUTILS_ARGS
+# for other backends.
+#
+# Example:
+# @CODE
+# python_configure_all() {
+# 	DISTUTILS_CONFIG_SETTINGS_JSON='
+# 		{
+# 			"verbose": true,
+# 			"targets": ["foo", "bar"],
+# 			"build-type": "release"
+# 		}
+# 	'
 # }
 # @CODE
 
@@ -551,6 +521,7 @@ distutils_enable_tests() {
 	case ${1} in
 		import-check)
 			test_pkgs+=' dev-python/pytest-import-check[${PYTHON_USEDEP}]'
+			EPYTEST_PLUGINS+=( pytest-import-check )
 			;&
 		pytest)
 			test_pkgs+=' >=dev-python/pytest-7.4.4[${PYTHON_USEDEP}]'
@@ -719,12 +690,12 @@ _distutils-r1_print_package_versions() {
 		)
 	fi
 	case ${DISTUTILS_USE_PEP517} in
-		flit)
+		flit-core|meson-python|poetry-core|scikit-build-core|sip)
 			packages+=(
-				dev-python/flit-core
+				"dev-python/${DISTUTILS_USE_PEP517}"
 			)
 			;;
-		flit_scm)
+		flit-scm)
 			packages+=(
 				dev-python/flit-core
 				dev-python/flit-scm
@@ -738,7 +709,7 @@ _distutils-r1_print_package_versions() {
 				dev-python/hatch-vcs
 			)
 			;;
-		jupyter)
+		jupyter-packaging)
 			packages+=(
 				dev-python/jupyter-packaging
 				dev-python/setuptools
@@ -754,11 +725,6 @@ _distutils-r1_print_package_versions() {
 		no)
 			return
 			;;
-		meson-python)
-			packages+=(
-				dev-python/meson-python
-			)
-			;;
 		pbr)
 			packages+=(
 				dev-python/pbr
@@ -772,27 +738,12 @@ _distutils-r1_print_package_versions() {
 				dev-python/setuptools
 			)
 			;;
-		poetry)
-			packages+=(
-				dev-python/poetry-core
-			)
-			;;
-		scikit-build-core)
-			packages+=(
-				dev-python/scikit-build-core
-			)
-			;;
 		setuptools)
 			packages+=(
 				dev-python/setuptools
 				dev-python/setuptools-rust
 				dev-python/setuptools-scm
 				dev-python/wheel
-			)
-			;;
-		sip)
-			packages+=(
-				dev-python/sip
 			)
 			;;
 		uv-build)
@@ -844,16 +795,16 @@ _distutils-r1_key_to_backend() {
 
 	local key=${1}
 	case ${key} in
-		flit)
+		flit-core)
 			echo flit_core.buildapi
 			;;
-		flit_scm)
+		flit-scm)
 			echo flit_scm:buildapi
 			;;
 		hatchling)
 			echo hatchling.build
 			;;
-		jupyter)
+		jupyter-packaging)
 			echo jupyter_packaging.build_api
 			;;
 		maturin)
@@ -868,7 +819,7 @@ _distutils-r1_key_to_backend() {
 		pdm-backend)
 			echo pdm.backend
 			;;
-		poetry)
+		poetry-core)
 			echo poetry.core.masonry.api
 			;;
 		scikit-build-core)
@@ -1013,6 +964,8 @@ distutils_wheel_install() {
 		-o -path '*.dist-info/license_files' \
 		-o -path '*.dist-info/licenses/*' \
 		-o -path '*.dist-info/licenses' \
+		-o -path '*.dist-info/sboms/*' \
+		-o -path '*.dist-info/sboms' \
 		-o -path '*.dist-info/zip-safe' \
 		\) -delete || die
 
@@ -1069,7 +1022,7 @@ distutils_pep517_install() {
 			local maturin_args=(
 				"${DISTUTILS_ARGS[@]}"
 				--auditwheel=skip # see bug #831171
-				--jobs="$(makeopts_jobs)"
+				--jobs="$(get_makeopts_jobs)"
 				$(in_iuse debug && usex debug '--profile=dev' '')
 			)
 
@@ -1196,6 +1149,12 @@ distutils_pep517_install() {
 			;;
 	esac
 
+	if [[ ${DISTUTILS_USE_PEP517} == standalone ]]; then
+		config_settings=${DISTUTILS_CONFIG_SETTINGS_JSON}
+	elif [[ -n ${DISTUTILS_CONFIG_SETTINGS_JSON} ]]; then
+		die "DISTUTILS_CONFIG_SETTINGS_JSON supported only for standalone backends"
+	fi
+
 	# https://pyo3.rs/latest/building-and-distribution.html#cross-compiling
 	if tc-is-cross-compiler; then
 		local -x PYO3_CROSS_LIB_DIR=${SYSROOT}/$(python_get_stdlib)
@@ -1259,14 +1218,15 @@ distutils-r1_python_compile() {
 	# we are appending a dynamic component so that
 	# distutils-r1_python_compile can be called multiple
 	# times and don't end up combining resulting packages
+	#
+	# we are no longer adding "parallel" since it is causing too many
+	# issues, including silent miscompilations, and upstream doesn't
+	# address any bugs
 	mkdir -p "${BUILD_DIR}" || die
 	local -x DIST_EXTRA_CONFIG="${BUILD_DIR}/extra-setup.cfg"
 	cat > "${DIST_EXTRA_CONFIG}" <<-EOF || die
 		[build]
 		build_base = ${BUILD_DIR}/build${#DISTUTILS_WHEELS[@]}
-
-		[build_ext]
-		parallel = $(makeopts_jobs "${MAKEOPTS} ${*}")
 	EOF
 
 	if [[ ${DISTUTILS_ALLOW_WHEEL_REUSE} ]]; then
@@ -1287,7 +1247,7 @@ distutils-r1_python_compile() {
 			# from the oldest to the newest implementation,
 			# and the wheels are forward-compatible.
 			if [[
-				( ! ${DISTUTILS_EXT} && ${whl} == *py3-none-any* ) ||
+				( ! ${DISTUTILS_EXT} && ${whl} == *py3-none* ) ||
 				(
 					${EPYTHON} == python* &&
 					# freethreading does not support stable ABI
@@ -1343,7 +1303,7 @@ _distutils-r1_wrap_scripts() {
 
 			debug-print "${FUNCNAME}: installing wrapper at ${bindir}/${basename}"
 			dosym -r /usr/lib/python-exec/python-exec2 \
-				"${bindir#${EPREFIX}}/${basename}"
+				"${bindir#"${EPREFIX}"}/${basename}"
 		done
 
 		for f in "${non_python_files[@]}"; do
@@ -1424,13 +1384,13 @@ distutils-r1_python_install() {
 		(
 			cd "${reg_scriptdir}" && find . -mindepth 1
 		) | sort > "${T}"/.distutils-files-bin
-		assert "listing ${reg_scriptdir} failed"
+		pipestatus || die "listing ${reg_scriptdir} failed"
 		(
 			if [[ -d ${wrapped_scriptdir} ]]; then
 				cd "${wrapped_scriptdir}" && find . -mindepth 1
 			fi
 		) | sort > "${T}"/.distutils-files-wrapped
-		assert "listing ${wrapped_scriptdir} failed"
+		pipestatus || die "listing ${wrapped_scriptdir} failed"
 		if ! diff -U 0 "${T}"/.distutils-files-{bin,wrapped}; then
 			die "File lists for ${reg_scriptdir} and ${wrapped_scriptdir} differ (see diff above)"
 		fi
@@ -1485,8 +1445,8 @@ distutils-r1_run_phase() {
 
 	local -x PATH=${BUILD_DIR}/install${EPREFIX}/usr/bin:${PATH}
 	# Set up build environment, bug #513664.
-	local -x AR=${AR} CC=${CC} CPP=${CPP} CXX=${CXX}
-	tc-export AR CC CPP CXX
+	local -x AR=${AR} CC=${CC} CPP=${CPP} CXX=${CXX} PKG_CONFIG=${PKG_CONFIG}
+	tc-export AR CC CPP CXX PKG_CONFIG
 
 	# Perform additional environment modifications only for python_compile
 	# phase.  This is the only phase where we expect to be calling the Python
@@ -1827,6 +1787,7 @@ _distutils-r1_post_python_install() {
 				eqawarn "QA Notice: Python extension modules (*$(get_modname)) found installed. Please set:"
 				eqawarn "  DISTUTILS_EXT=1"
 				eqawarn "in the ebuild."
+				[[ ${EAPI} != [78] ]] && die "DISTUTILS_EXT not set"
 				_DISTUTILS_EXT_WARNED=1
 			fi
 		fi
