@@ -1,14 +1,16 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-DISTUTILS_USE_PEP517=setuptools
+DISTUTILS_USE_PEP517=flit-core
 # PYTHON_COMPAT is used only for testing
-PYTHON_COMPAT=( pypy3_11 python3_{11..14} )
+PYTHON_COMPAT=( python3_{12..15} )
 PYTHON_REQ_USE="ssl(+),threads(+)"
 
-inherit distutils-r1
+inherit distutils-r1 pypi
+
+FLIT_CORE_PV=3.12.0
 
 MY_P=${P#ensurepip-}
 DESCRIPTION="Shared pip wheel for ensurepip Python module"
@@ -19,12 +21,15 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://github.com/pypa/pip/archive/${PV}.tar.gz -> ${MY_P}.gh.tar.gz
+	test? (
+		$(pypi_wheel_url flit-core "${FLIT_CORE_PV}")
+	)
 "
 S=${WORKDIR}/${MY_P}
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="test test-rust"
 RESTRICT="!test? ( test )"
 
@@ -46,14 +51,14 @@ BDEPEND="
 	)
 "
 
-EPYTEST_PLUGINS=( pytest-rerunfailures )
+EPYTEST_PLUGINS=()
+EPYTEST_RERUNS=5
 EPYTEST_XDIST=1
 distutils_enable_tests pytest
 
 declare -A VENDOR_LICENSES=(
 	[cachecontrol]=Apache-2.0
 	[certifi]=MPL-2.0
-	[dependency_groups]=MIT
 	[distlib]=PSF-2
 	[distro]=Apache-2.0
 	[idna]=BSD
@@ -70,13 +75,18 @@ declare -A VENDOR_LICENSES=(
 	[tomli_w]=MIT
 	[truststore]=MIT
 	[urllib3]=MIT
-	[typing_extensions.py]=PSF-2
 )
 LICENSE+=" ${VENDOR_LICENSES[*]}"
 
 python_prepare_all() {
 	local PATCHES=(
-		"${FILESDIR}/pip-23.1-no-coverage.patch"
+		# remove coverage & pytest-subket wheel expectation from test suite
+		# (from dev-python/pip)
+		"${FILESDIR}/pip-26.0-test-wheels.patch"
+
+		# https://github.com/pypa/pip/pull/14033
+		# + https://github.com/pypa/pip/commit/4c6d7471dec62fb004a47a7c2164b6b5b089ac06
+		"${FILESDIR}/pip-26.1.2-py315.patch"
 	)
 
 	distutils-r1_python_prepare_all
@@ -84,6 +94,7 @@ python_prepare_all() {
 	if use test; then
 		local wheels=(
 			"${BROOT}"/usr/lib/python/ensurepip/{setuptools,wheel}-*.whl
+			"${DISTDIR}/$(pypi_wheel_name flit-core "${FLIT_CORE_PV}")"
 		)
 		mkdir tests/data/common_wheels/ || die
 		cp "${wheels[@]}" tests/data/common_wheels/ || die
@@ -91,7 +102,7 @@ python_prepare_all() {
 
 	# Verify that we've covered licenses for all vendored packages
 	cd src/pip/_vendor || die
-	local packages=( */ [A-Za-z]*.py )
+	local packages=( */ )
 	local pkg missing=()
 	for pkg in "${packages[@]%/}"; do
 		if [[ ! -v "VENDOR_LICENSES[${pkg}]" ]]; then
@@ -136,6 +147,9 @@ python_test() {
 		tests/unit/test_base_command.py::test_base_command_provides_tempdir_helpers
 	)
 	local EPYTEST_IGNORE=(
+		# from upstream options
+		src/pip/_vendor
+		tests/tests_cache
 		# requires proxy.py
 		tests/functional/test_proxy.py
 	)
@@ -146,26 +160,12 @@ python_test() {
 				# unexpected tempfiles?
 				tests/functional/test_install_config.py::test_do_not_prompt_for_authentication
 				tests/functional/test_install_config.py::test_prompt_for_authentication
-			)
-			;;
-		python3.14*)
-			EPYTEST_DESELECT+=(
-				# TODO: segfaults
-				tests/unit/test_collector.py::test_get_index_content_directory_append_index
-				# https://github.com/python/cpython/issues/125974
-				tests/unit/test_collector.py::test_ensure_quoted_url
-				tests/unit/test_finder.py::test_finder_priority_file_over_page
-				tests/unit/test_urls.py::test_path_to_url_unix
-				tests/unit/test_collector.py::test_clean_url_path
-				tests/unit/test_collector.py::test_clean_url_path_with_local_path
-				tests/unit/test_req.py::TestRequirementSet::test_download_info_local_editable_dir
-				tests/unit/test_req.py::test_parse_editable_local
-				tests/unit/test_req.py::test_parse_editable_local_extras
-				tests/unit/test_req.py::test_get_url_from_path__archive_file
-				tests/unit/test_req.py::test_get_url_from_path__installable_dir
-				tests/functional/test_lock.py::test_lock_wheel_from_findlinks
-				tests/functional/test_lock.py::test_lock_sdist_from_findlinks
-				tests/functional/test_lock.py::test_lock_local_editable_with_dep
+				# wrong path
+				tests/functional/test_install.py::test_install_editable_with_prefix_setup_py
+				# wrong exception assumptions
+				tests/unit/test_utils_datetime.py::test_parse_iso_datetime_invalid
+				# TODO
+				tests/functional/test_install.py::test_install_warns_on_unexpected_post_install_import
 			)
 			;;
 	esac
@@ -182,8 +182,8 @@ python_test() {
 	local -x PIP_DISABLE_PIP_VERSION_CHECK=1
 	# rerunfailures because test suite breaks if packages are installed
 	# in parallel
-	epytest -m "not network" -o tmp_path_retention_policy=all \
-		--reruns=5 --use-venv
+	epytest -m "not network" -o addopts= -o tmp_path_retention_policy=all \
+		--use-venv
 }
 
 src_install() {
