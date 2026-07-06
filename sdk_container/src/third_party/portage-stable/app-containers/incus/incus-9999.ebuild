@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,20 +7,26 @@ inherit go-env go-module linux-info optfeature systemd toolchain-funcs verify-si
 
 DESCRIPTION="Modern, secure and powerful system container and virtual machine manager"
 HOMEPAGE="https://linuxcontainers.org/incus/introduction/ https://github.com/lxc/incus"
-SRC_URI="https://linuxcontainers.org/downloads/incus/${P}.tar.xz
-	verify-sig? ( https://linuxcontainers.org/downloads/incus/${P}.tar.xz.asc )"
+
+if [[ "${PV}" == 9999* ]]; then
+	inherit git-r3
+	EGIT_REPO_URI="https://github.com/lxc/incus.git"
+else
+	SRC_URI="https://linuxcontainers.org/downloads/incus/${P}.tar.xz
+		verify-sig? ( https://linuxcontainers.org/downloads/incus/${P}.tar.xz.asc )"
+	KEYWORDS="~amd64 ~arm64"
+fi
 
 LICENSE="Apache-2.0 BSD LGPL-3 MIT"
-SLOT="0/lts"
-KEYWORDS="amd64 ~arm64"
-IUSE="apparmor fuidshift nls qemu"
+SLOT="0/stable"
+IUSE="apparmor fuidshift nls qemu selinux"
 
 DEPEND="acct-group/incus
 	acct-group/incus-admin
 	app-arch/xz-utils
 	>=app-containers/lxc-5.0.0:=[apparmor?,seccomp(+)]
 	dev-db/sqlite:3
-	>=dev-libs/cowsql-1.15.6
+	>=dev-libs/cowsql-1.15.7
 	dev-libs/lzo
 	>=dev-libs/raft-0.22.1:=[lz4]
 	>=dev-util/xdelta-3.0[lzma(+)]
@@ -28,22 +34,22 @@ DEPEND="acct-group/incus
 	sys-libs/libcap
 	virtual/udev"
 RDEPEND="${DEPEND}
-	|| (
-		net-firewall/iptables
-		net-firewall/nftables
-	)
 	fuidshift? ( !app-containers/lxd )
+	net-firewall/ebtables
+	net-firewall/nftables[json]
 	sys-apps/iproute2
 	sys-fs/fuse:*
 	>=sys-fs/lxcfs-5.0.0
 	sys-fs/squashfs-tools[lzma]
 	virtual/acl
+	apparmor? ( sec-policy/apparmor-profiles )
 	qemu? (
 		app-cdr/cdrtools
 		app-emulation/qemu[spice,usbredir,virtfs]
 		sys-apps/gptfdisk
-	)"
-BDEPEND=">=dev-lang/go-1.21
+	)
+	selinux? ( sec-policy/selinux-incus )"
+BDEPEND=">=dev-lang/go-1.25.10
 	nls? ( sys-devel/gettext )
 	verify-sig? ( sec-keys/openpgp-keys-linuxcontainers )"
 
@@ -81,8 +87,7 @@ QA_PREBUILT="/usr/bin/incus
 	/usr/bin/incus-migrate
 	/usr/bin/lxc-to-incus
 	/usr/sbin/fuidshift
-	/usr/sbin/incusd
-	/usr/sbin/lxd-to-incus"
+	/usr/sbin/incusd"
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/linuxcontainers.asc
 
@@ -93,8 +98,14 @@ RESTRICT="test"
 GOPATH="${S}/_dist"
 
 src_unpack() {
-	verify-sig_src_unpack
-	go-module_src_unpack
+	if [[ "${PV}" == 9999* ]]; then
+		git-r3_src_unpack
+		go-module_live_vendor
+		go-env_set_compile_environment
+	else
+		verify-sig_src_unpack
+		go-module_src_unpack
+	fi
 }
 
 src_prepare() {
@@ -112,7 +123,7 @@ src_prepare() {
 		-e "s:OVMF_VARS.ms.fd:OVMF_VARS.fd:g" \
 		internal/server/instance/drivers/edk2/driver_edk2.go || die "Failed to fix hardcoded ovmf paths."
 
-	cp "${FILESDIR}"/incus-0.4.service "${T}"/incus.service || die
+	cp "${FILESDIR}"/incus-6.14-r1.service "${T}"/incus.service || die
 	if use apparmor; then
 		sed -i \
 			'/^EnvironmentFile=.*/a ExecStartPre=\/usr\/libexec\/lxc\/lxc-apparmor-load' \
@@ -125,11 +136,20 @@ src_prepare() {
 
 src_configure() { :; }
 
+incus_get_bindir() {
+	local host_arch=${1}
+	if [[ "${GOARCH}" != "${host_arch}" ]]; then
+		echo "_dist/bin/linux_${GOARCH}"
+	else
+		echo "_dist/bin"
+	fi
+}
+
 src_compile() {
 	export GOPATH="${S}/_dist"
 	export CGO_LDFLAGS_ALLOW="-Wl,-z,now"
 
-	for k in incus-benchmark incus-simplestreams incus-user incus lxc-to-incus lxd-to-incus ; do
+	for k in incus-benchmark incus-simplestreams incus-user incus lxc-to-incus; do
 		ego install -v -x "${S}/cmd/${k}"
 	done
 
@@ -140,8 +160,29 @@ src_compile() {
 	ego install -v -x -tags libsqlite3 "${S}"/cmd/incusd
 
 	# Needs to be built statically
-	CGO_ENABLED=0 go install -v -tags netgo "${S}"/cmd/incus-migrate
-	CGO_ENABLED=0 go install -v -tags agent,netgo "${S}"/cmd/incus-agent
+	CGO_ENABLED=0 go install -v -tags agent,netgo,static -buildmode default "${S}"/cmd/incus-migrate
+
+	local bindir=$(incus_get_bindir "$(go-env_goarch "${CBUILD}")")
+
+	# Build the VM agents, statically too
+	if use amd64 ; then
+		GOARCH=amd64 CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.linux.x86_64 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+		GOARCH=386 CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.linux.i686 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+		GOARCH=amd64 GOOS=windows CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.windows.x86_64 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+		GOARCH=386 GOOS=windows CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.windows.i686 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+	elif use arm64 ; then
+		GOARCH=arm64 CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.linux.aarch64 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+		GOARCH=arm64 GOOS=windows CGO_ENABLED=0 ego build -o "${bindir}"/incus-agent.windows.aarch64 -v \
+			-tags agent,netgo,static -buildmode default "${S}"/cmd/incus-agent
+	else
+		echo "No VM support for this arch."
+		return
+	fi
 
 	use nls && emake build-mo
 }
@@ -154,23 +195,32 @@ src_install() {
 	export GOPATH="${S}/_dist"
 
 	export GOHOSTARCH=$(go-env_goarch "${CBUILD}")
-	if [[ "${GOARCH}" != "${GOHOSTARCH}" ]]; then
-		local bindir="_dist/bin/linux_${GOARCH}"
-	else
-		local bindir="_dist/bin"
-	fi
+	local bindir=$(incus_get_bindir "${GOHOSTARCH}")
 
 	newsbin "${FILESDIR}"/incus-startup-0.4.sh incus-startup
 
 	# Admin tools
-	for l in incusd incus-user lxd-to-incus ; do
-		dosbin ${bindir}/${l}
+	for l in incusd incus-user; do
+		dosbin "${bindir}/${l}"
 	done
 
 	# User tools
-	for m in incus-agent incus-benchmark incus-migrate incus-simplestreams incus lxc-to-incus ; do
-		dobin ${bindir}/${m}
+	for m in incus-benchmark incus-migrate incus-simplestreams incus lxc-to-incus ; do
+		dobin "${bindir}/${m}"
 	done
+
+	# VM Agents
+	if use amd64 ; then
+		exeinto /usr/libexec/incus/agents
+		doexe ${bindir}/incus-agent.linux.x86_64
+		doexe ${bindir}/incus-agent.linux.i686
+		doexe ${bindir}/incus-agent.windows.x86_64
+		doexe ${bindir}/incus-agent.windows.i686
+	elif use arm64 ; then
+		exeinto /usr/libexec/incus/agents
+		doexe ${bindir}/incus-agent.linux.aarch64
+		doexe ${bindir}/incus-agent.windows.aarch64
+	fi
 
 	# fuidshift, should be moved under admin tools at some point
 	if use fuidshift ; then
@@ -201,10 +251,13 @@ src_install() {
 	dodoc -r doc/*
 	use nls && domo po/*.mo
 
-	# Incus needs INCUS_EDK2_PATH in env to find OVMF files for virtual machines, #946184
-	newenvd - 90incus <<- _EOF_
-		INCUS_EDK2_PATH=${EPREFIX}/usr/share/edk2-ovmf
-	_EOF_
+	# Incus needs INCUS_EDK2_PATH in env to find OVMF files for virtual machines, #946184,
+	# and INCUS_AGENT_PATH to find multi-setup agents for VMs, #959878,
+	# and INCUS_SECURITY_SELINUX=true to enable selinux support (until its enabled by default)
+	newenvd "${FILESDIR}"/90incus.envd 90incus
+	if use selinux; then
+		echo "INCUS_SECURITY_SELINUX=true" >> "${D}"/etc/env.d/90incus
+	fi
 }
 
 pkg_postinst() {
@@ -213,8 +266,9 @@ pkg_postinst() {
 	elog "  https://wiki.gentoo.org/wiki/Incus"
 	elog "  https://wiki.gentoo.org/wiki/Incus#Migrating_from_LXD"
 	elog
-	optfeature "btrfs storage backend" sys-fs/btrfs-progs
+	optfeature "OCI container images support" app-containers/skopeo app-containers/umoci
 	optfeature "support for ACME certificate issuance" app-crypt/lego
+	optfeature "btrfs storage backend" sys-fs/btrfs-progs
 	optfeature "ipv6 support" net-dns/dnsmasq[ipv6]
 	optfeature "full incus-migrate support" net-misc/rsync
 	optfeature "lvm2 storage backend" sys-fs/lvm2
