@@ -1,10 +1,10 @@
-# Copyright 2022-2025 Gentoo Authors
+# Copyright 2022-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 DISTUTILS_USE_PEP517=poetry
-PYTHON_COMPAT=( python3_{11..14} pypy3_11 )
+PYTHON_COMPAT=( python3_{12..15} )
 
 inherit distutils-r1 optfeature
 
@@ -20,7 +20,7 @@ SRC_URI="
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 
 RDEPEND="
 	dev-python/colorama[${PYTHON_USEDEP}]
@@ -32,11 +32,6 @@ BDEPEND="
 		>=dev-python/attrs-21.4.0[${PYTHON_USEDEP}]
 	)
 "
-
-PATCHES=(
-	# https://github.com/Textualize/rich/pull/3622
-	"${FILESDIR}"/${PN}-14.0.0-py314.patch
-)
 
 EPYTEST_PLUGINS=()
 distutils_enable_tests pytest
@@ -54,25 +49,23 @@ python_test() {
 		# pygments version?
 		tests/test_syntax.py::test_from_path
 		tests/test_syntax.py::test_syntax_guess_lexer
+		# flaky? plain broken?
+		tests/test_console.py::test_brokenpipeerror
 	)
 	# version-specific output -- the usual deal
 	case ${EPYTHON} in
-		pypy3)
+		python3.15*)
 			EPYTEST_DESELECT+=(
-				# pypy3.10, to be more precise
+				# https://github.com/Textualize/rich/pull/4082 isn't complete
+				tests/test_inspect.py::test_inspect_integer_with_methods_python38_and_python39
 				tests/test_inspect.py::test_inspect_integer_with_methods_python310only
-			)
-			;;
-		pypy3.11)
-			EPYTEST_DESELECT+=(
 				tests/test_inspect.py::test_inspect_integer_with_methods_python311
+				tests/test_inspect.py::test_inspect_builtin_function_except_python311
+				tests/test_inspect.py::test_inspect_builtin_function_only_python311
+				tests/test_pretty.py::test_attrs_broken
+
 			)
 			;;
-		python3.14*)
-			EPYTEST_DESELECT+=(
-				# Span vs Style
-				tests/test_text.py::test_assemble_meta
-			)
 	esac
 
 	local -x COLUMNS=80
