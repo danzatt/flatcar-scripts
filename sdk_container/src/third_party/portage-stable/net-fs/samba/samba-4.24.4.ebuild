@@ -1,11 +1,11 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{12..14} )
 PYTHON_REQ_USE="threads(+),xml(+)"
-inherit python-single-r1 flag-o-matic waf-utils multilib-minimal linux-info systemd pam tmpfiles
+inherit python-single-r1 flag-o-matic waf-utils multilib-minimal linux-info optfeature systemd pam tmpfiles
 
 DESCRIPTION="Samba Suite Version 4"
 HOMEPAGE="https://samba.org/"
@@ -16,22 +16,24 @@ if [[ ${PV} == *_rc* ]]; then
 	SRC_URI="https://download.samba.org/pub/samba/rc/${MY_P}.tar.gz"
 else
 	SRC_URI="https://download.samba.org/pub/samba/stable/${MY_P}.tar.gz"
-	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv sparc x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~sparc x86"
 fi
 S="${WORKDIR}/${MY_P}"
 
 LICENSE="GPL-3"
-SLOT="0"
+SLOT="0/2.11.0"
 IUSE="acl addc ads ceph client cluster cups debug fam glusterfs gpg"
-IUSE+=" iprint json ldap llvm-libunwind pam profiling-data python quota +regedit selinux"
-IUSE+=" snapper spotlight syslog system-heimdal +system-mitkrb5 systemd test unwind winbind"
-IUSE+=" zeroconf"
+IUSE+=" iprint json ldap llvm-libunwind lmdb pam profiling-data python quota"
+IUSE+=" +regedit selinux snapper spotlight syslog system-heimdal +system-mitkrb5"
+IUSE+=" systemd test unwind winbind zeroconf"
 
+# ldap needs ads (bug #941578)
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
 	addc? ( json python !system-mitkrb5 winbind )
 	ads? ( acl ldap python winbind )
 	cluster? ( ads )
 	gpg? ( addc )
+	ldap? ( ads )
 	spotlight? ( json )
 	test? ( python )
 	!ads? ( !addc )
@@ -55,9 +57,9 @@ MULTILIB_WRAPPED_HEADERS=(
 	/usr/include/samba-4.0/ctdb_version.h
 )
 
-TALLOC_VERSION="2.4.2"
-TDB_VERSION="1.4.10"
-TEVENT_VERSION="0.16.1"
+TALLOC_VERSION="2.4.4"
+TDB_VERSION="1.4.15"
+TEVENT_VERSION="0.17.1"
 
 COMMON_DEPEND="
 	>=app-arch/libarchive-3.1.2:=[${MULTILIB_USEDEP}]
@@ -68,9 +70,9 @@ COMMON_DEPEND="
 	dev-libs/popt[${MULTILIB_USEDEP}]
 	dev-perl/Parse-Yapp
 	>=net-libs/gnutls-3.4.7:=[${MULTILIB_USEDEP}]
+	>=net-libs/ngtcp2-1.12.0[gnutls,${MULTILIB_USEDEP}]
 	>=sys-fs/e2fsprogs-1.46.4-r51[${MULTILIB_USEDEP}]
-	>=sys-libs/ldb-2.9.2:=[ldap(+)?,${MULTILIB_USEDEP}]
-	<sys-libs/ldb-2.10.0:=[ldap(+)?,${MULTILIB_USEDEP}]
+	!sys-libs/ldb
 	sys-libs/libcap[${MULTILIB_USEDEP}]
 	sys-libs/liburing:=[${MULTILIB_USEDEP}]
 	sys-libs/ncurses:=
@@ -78,16 +80,20 @@ COMMON_DEPEND="
 	>=sys-libs/talloc-${TALLOC_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tdb-${TDB_VERSION}[${MULTILIB_USEDEP}]
 	>=sys-libs/tevent-${TEVENT_VERSION}[${MULTILIB_USEDEP}]
-	sys-libs/zlib[${MULTILIB_USEDEP}]
+	virtual/zlib:=[${MULTILIB_USEDEP}]
 	virtual/libcrypt:=[${MULTILIB_USEDEP}]
 	virtual/libiconv
 	$(python_gen_cond_dep '
 		addc? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
 			dev-python/markdown[${PYTHON_USEDEP}]
+			net-dns/bind[gssapi]
 		)
 		ads? (
+			dev-python/cryptography[${PYTHON_USEDEP}]
 			dev-python/dnspython:=[${PYTHON_USEDEP}]
+			dev-python/markdown[${PYTHON_USEDEP}]
 			net-dns/bind[gssapi]
 		)
 	')
@@ -100,9 +106,9 @@ COMMON_DEPEND="
 	gpg? ( app-crypt/gpgme:= )
 	json? ( dev-libs/jansson:= )
 	ldap? ( net-nds/openldap:=[${MULTILIB_USEDEP}] )
+	lmdb? ( >=dev-db/lmdb-0.9.16:=[${MULTILIB_USEDEP}] )
 	pam? ( sys-libs/pam )
 	python? (
-		sys-libs/ldb[python,${PYTHON_SINGLE_USEDEP}]
 		sys-libs/talloc[python,${PYTHON_SINGLE_USEDEP}]
 		sys-libs/tdb[python,${PYTHON_SINGLE_USEDEP}]
 		sys-libs/tevent[python,${PYTHON_SINGLE_USEDEP}]
@@ -147,8 +153,6 @@ BDEPEND="${PYTHON_DEPS}
 PATCHES=(
 	"${FILESDIR}"/${PN}-4.18.4-pam.patch
 	"${FILESDIR}"/ldb-2.5.2-skip-wav-tevent-check.patch
-	"${FILESDIR}"/${P}-dont-use-deprecated-readline-CPPFunction-cast.patch
-	"${FILESDIR}"/${P}-CVE-2025-0620.patch
 )
 
 CONFDIR="${FILESDIR}/4.4"
@@ -209,6 +213,9 @@ src_prepare() {
 	# Ugly hackaround for bug #592502
 	#cp /usr/include/tevent_internal.h "${S}"/lib/tevent/ || die
 
+	# bug #943942
+	append-cflags -std=gnu17
+
 	# WAF
 	multilib_copy_sources
 }
@@ -247,6 +254,8 @@ multilib_src_configure() {
 		EOF
 	fi
 
+	bundled_libs="libquic,${bundled_libs}"
+
 	local myconf=(
 		--enable-fhs
 		--sysconfdir="${EPREFIX}/etc"
@@ -262,7 +271,6 @@ multilib_src_configure() {
 		--without-winexe
 		$(multilib_native_use_with acl acl-support)
 		$(multilib_native_usex addc '' '--without-ad-dc')
-		$(multilib_native_use_with ads)
 		$(multilib_native_use_enable ceph cephfs)
 		$(multilib_native_use_with cluster cluster-support)
 		$(multilib_native_use_enable cups)
@@ -286,10 +294,13 @@ multilib_src_configure() {
 		$(multilib_native_usex python '' '--disable-python')
 		$(multilib_native_use_enable zeroconf avahi)
 		$(multilib_native_usex test '--enable-selftest' '')
-		$(usev system-mitkrb5 "--with-system-mitkrb5 ${ESYSROOT}/usr $(multilib_native_usex addc --with-experimental-mit-ad-dc '')")
+		$(usev system-mitkrb5 "--with-system-mitkrb5 $(multilib_native_usex addc --with-experimental-mit-ad-dc '')")
+		$(use_with ads)
 		$(use_with debug lttng)
 		$(use_with ldap)
 		$(use_with profiling-data)
+		--private-libraries='!ldb'
+		$(usex lmdb '' --without-ldb-lmdb)
 		# bug #683148
 		--jobs 1
 	)
@@ -299,6 +310,8 @@ multilib_src_configure() {
 	else
 		myconf+=( --with-shared-modules=DEFAULT,!vfs_snapper )
 	fi
+
+	append-ldflags $(test-flags-CCLD -Wl,--undefined-version) # bug 914898
 
 	append-cppflags "-I${ESYSROOT}/usr/include/et"
 
@@ -380,4 +393,8 @@ multilib_src_install() {
 
 pkg_postinst() {
 	tmpfiles_process samba.conf
+
+	if use addc || use ads ; then
+		optfeature "Hide passwords from command line when using samba-tool or samba-gpupdate" dev-python/setproctitle
+	fi
 }
