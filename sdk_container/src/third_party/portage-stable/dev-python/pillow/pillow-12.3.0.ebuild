@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,10 +6,10 @@ EAPI=8
 DISTUTILS_EXT=1
 # setuptools wrapper
 DISTUTILS_USE_PEP517=standalone
-PYTHON_COMPAT=( python3_{11..14} pypy3_11 )
+PYTHON_COMPAT=( python3_{12..15} )
 PYTHON_REQ_USE='tk?,threads(+)'
 
-inherit distutils-r1 toolchain-funcs virtualx
+inherit distutils-r1 multiprocessing toolchain-funcs virtualx
 
 MY_PN=Pillow
 MY_P=${MY_PN}-${PV}
@@ -19,7 +19,7 @@ TEST_IMAGE_COMMIT="7077675d2cda485d63de4aefe0fefbf6f655c5a0"
 
 DESCRIPTION="Python Imaging Library (fork)"
 HOMEPAGE="
-	https://python-pillow.org/
+	https://python-pillow.github.io/
 	https://github.com/python-pillow/Pillow/
 	https://pypi.org/project/pillow/
 "
@@ -35,9 +35,12 @@ S=${WORKDIR}/${MY_P}
 
 LICENSE="HPND"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~x64-macos"
-IUSE="avif examples imagequant +jpeg jpeg2k lcms test tiff tk truetype webp xcb zlib"
-REQUIRED_USE="test? ( jpeg jpeg2k lcms tiff truetype )"
+KEYWORDS="~alpha amd64 arm arm64 ppc ppc64 ~riscv x86"
+IUSE="avif examples imagequant +jpeg jpeg2k lcms raqm test tiff tk truetype webp xcb zlib"
+REQUIRED_USE="
+	raqm? ( truetype )
+	test? ( jpeg jpeg2k lcms tiff truetype )
+"
 RESTRICT="!test? ( test )"
 
 DEPEND="
@@ -48,18 +51,20 @@ DEPEND="
 	lcms? ( media-libs/lcms:2= )
 	tiff? ( media-libs/tiff:=[jpeg,zlib] )
 	truetype? (
-		media-libs/freetype:2=
+		media-libs/freetype:2
 		media-libs/harfbuzz:=
+		raqm? ( media-libs/raqm:= )
 	)
 	webp? ( media-libs/libwebp:= )
 	xcb? ( x11-libs/libxcb )
-	zlib? ( sys-libs/zlib:= )
+	zlib? ( virtual/zlib:= )
 "
 RDEPEND="
 	${DEPEND}
 	dev-python/olefile[${PYTHON_USEDEP}]
 "
 BDEPEND="
+	dev-python/pybind11[${PYTHON_USEDEP}]
 	>=dev-python/setuptools-77[${PYTHON_USEDEP}]
 	dev-python/wheel[${PYTHON_USEDEP}]
 	virtual/pkgconfig
@@ -89,6 +94,9 @@ src_prepare() {
 		mv "${WORKDIR}/test-images-${TEST_IMAGE_COMMIT}"/* \
 			Tests/images || die
 	fi
+
+	# just in case
+	rm -r src/thirdparty/{fribidi-shim,raqm} || die
 }
 
 usepil() {
@@ -101,27 +109,20 @@ python_configure_all() {
 		debug = True
 		disable_platform_guessing = True
 		$(usepil avif)_avif = True
-		$(usepil truetype)_freetype = True
+		$(usepil imagequant)_imagequant = True
 		$(usepil jpeg)_jpeg = True
 		$(usepil jpeg2k)_jpeg2000 = True
 		$(usepil lcms)_lcms = True
+		$(usepil raqm)_raqm = True
 		$(usepil tiff)_tiff = True
-		$(usepil imagequant)_imagequant = True
+		$(usepil truetype)_freetype = True
 		$(usepil webp)_webp = True
 		$(usepil xcb)_xcb = True
 		$(usepil zlib)_zlib = True
 	EOF
-	if use truetype; then
-		# these dependencies are implicitly disabled by USE=-truetype
-		# and we can't pass both disable_* and vendor_*
-		# https://bugs.gentoo.org/935124
-		cat >> setup.cfg <<-EOF || die
-			vendor_raqm = False
-			vendor_fribidi = False
-		EOF
-	fi
 
 	tc-export PKG_CONFIG
+	export MAX_CONCURRENCY=$(makeopts_jobs)
 }
 
 src_test() {
