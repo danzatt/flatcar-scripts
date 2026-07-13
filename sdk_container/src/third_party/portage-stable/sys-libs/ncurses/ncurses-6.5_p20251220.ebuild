@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -22,7 +22,7 @@ SRC_URI="
 "
 
 GENTOO_PATCH_DEV=sam
-GENTOO_PATCH_PV=6.5_p20250301
+GENTOO_PATCH_PV=6.5_p20251220
 GENTOO_PATCH_NAME=${PN}-${GENTOO_PATCH_PV}-patches
 
 # Populated below in a loop. Do not add patches manually here.
@@ -88,6 +88,42 @@ if [[ ${PV} == *_p* ]] ; then
 		20250308
 		20250315
 		20250322
+		20250329
+		20250405
+		20250412
+		20250419
+		20250426
+		20250503
+		20250510
+		20250517
+		20250524
+		20250531
+		20250614
+		20250621
+		20250628
+		20250705
+		20250712
+		20250720
+		20250726
+		20250802
+		20250809
+		20250816
+		20250823
+		20250830
+		20250913
+		20250920
+		20250927
+		20251004
+		20251010
+		20251018
+		20251025
+		20251101
+		20251115
+		20251122
+		20251123
+		20251129
+		20251206
+		20251213
 
 		# Latest patch is just _pN = $(ver_cut 4)
 		$(ver_cut 4)
@@ -129,7 +165,7 @@ S="${WORKDIR}/${MY_P}"
 LICENSE="MIT"
 # The subslot reflects the SONAME.
 SLOT="0/6"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="ada +cxx debug doc gpm minimal profile split-usr +stack-realign static-libs test tinfo trace"
 # In 6.5_p20250118, the C++ examples fail to link, but there's no automated
 # testsuite anyway. Controlling building examples isn't really what USE=test
@@ -191,9 +227,6 @@ src_configure() {
 
 	# bug #214642
 	BUILD_CPPFLAGS+=" -D_GNU_SOURCE"
-
-	# NCURSES_BOOL confusion, see https://lists.gnu.org/archive/html/bug-ncurses/2024-11/msg00010.html
-	append-cflags $(test-flags-CC -std=gnu17)
 
 	# Build the various variants of ncurses -- narrow, wide, and threaded. #510440
 	# Order matters here -- we want unicode/thread versions to come last so that the
@@ -301,10 +334,10 @@ do_configure() {
 		--enable-hard-tabs
 		--enable-echo
 		$(use_enable !ada warnings)
-		$(use_with debug assertions)
+		$(use_enable debug assertions)
 		$(use_enable !debug leaks)
-		$(use_with debug expanded)
-		$(use_with !debug macros)
+		$(use_enable debug expanded)
+		$(use_enable !debug macros)
 		$(multilib_native_with progs)
 		$(use_with test tests)
 		$(use_with trace)
@@ -345,7 +378,7 @@ do_configure() {
 	# See comments in src_configure.
 	if [[ ${target} != "cross" ]] ; then
 		local cross_path="${WORKDIR}/cross"
-		[[ -d ${cross_path} ]] && export TIC_PATH="${cross_path}/progs/tic"
+		[[ -d ${cross_path} ]] && export TIC="${cross_path}/progs/tic"
 	fi
 
 	ECONF_SOURCE="${S}" econf "${conf[@]}" "$@"
