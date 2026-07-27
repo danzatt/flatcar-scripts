@@ -1,16 +1,17 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 # please bump dev-python/ensurepip-pip along with this package!
 
-DISTUTILS_USE_PEP517=setuptools
-PYTHON_TESTED=( pypy3_11 python3_{11..14} )
+DISTUTILS_USE_PEP517=flit-core
+PYTHON_TESTED=( python3_{12..15} )
 PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" )
 PYTHON_REQ_USE="ssl(+),threads(+)"
 
-inherit distutils-r1 shell-completion
+inherit distutils-r1 pypi shell-completion
+FLIT_CORE_PV=3.12.0
 
 DESCRIPTION="The PyPA recommended tool for installing Python packages"
 HOMEPAGE="
@@ -20,27 +21,30 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://github.com/pypa/pip/archive/${PV}.tar.gz -> ${P}.gh.tar.gz
+	test? (
+		$(pypi_wheel_url flit-core "${FLIT_CORE_PV}")
+	)
 "
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 IUSE="test test-rust"
 RESTRICT="!test? ( test )"
 
 # see src/pip/_vendor/vendor.txt
 RDEPEND="
-	>=dev-python/cachecontrol-0.14.2[${PYTHON_USEDEP}]
+	>=dev-python/cachecontrol-0.14.3[${PYTHON_USEDEP}]
 	>=dev-python/dependency-groups-1.3.0[${PYTHON_USEDEP}]
-	>=dev-python/distlib-0.3.9[${PYTHON_USEDEP}]
+	>=dev-python/distlib-0.4.0[${PYTHON_USEDEP}]
 	>=dev-python/distro-1.9.0[${PYTHON_USEDEP}]
-	>=dev-python/msgpack-1.1.0[${PYTHON_USEDEP}]
-	>=dev-python/packaging-25.0[${PYTHON_USEDEP}]
-	>=dev-python/platformdirs-4.3.7[${PYTHON_USEDEP}]
+	>=dev-python/msgpack-1.1.1[${PYTHON_USEDEP}]
+	>=dev-python/packaging-26.2[${PYTHON_USEDEP}]
+	>=dev-python/platformdirs-4.3.8[${PYTHON_USEDEP}]
 	>=dev-python/pyproject-hooks-1.2.0[${PYTHON_USEDEP}]
-	>=dev-python/requests-2.32.3[${PYTHON_USEDEP}]
-	>=dev-python/rich-14.0.0[${PYTHON_USEDEP}]
-	>=dev-python/resolvelib-1.1.0[${PYTHON_USEDEP}]
+	>=dev-python/requests-2.33.1[${PYTHON_USEDEP}]
+	>=dev-python/rich-14.1.0[${PYTHON_USEDEP}]
+	>=dev-python/resolvelib-1.2.0[${PYTHON_USEDEP}]
 	>=dev-python/setuptools-70.3.0[${PYTHON_USEDEP}]
 	>=dev-python/tomli-w-1.2.0[${PYTHON_USEDEP}]
 	>=dev-python/truststore-0.10.1[${PYTHON_USEDEP}]
@@ -51,7 +55,6 @@ BDEPEND="
 	test? (
 		$(python_gen_cond_dep '
 			dev-python/ensurepip-setuptools
-			dev-python/ensurepip-wheel
 			dev-python/freezegun[${PYTHON_USEDEP}]
 			dev-python/pretend[${PYTHON_USEDEP}]
 			dev-python/pytest[${PYTHON_USEDEP}]
@@ -61,7 +64,6 @@ BDEPEND="
 			<dev-python/setuptools-80[${PYTHON_USEDEP}]
 			dev-python/virtualenv[${PYTHON_USEDEP}]
 			dev-python/werkzeug[${PYTHON_USEDEP}]
-			dev-python/wheel[${PYTHON_USEDEP}]
 			test-rust? (
 				dev-python/cryptography[${PYTHON_USEDEP}]
 			)
@@ -72,9 +74,11 @@ BDEPEND="
 
 python_prepare_all() {
 	local PATCHES=(
-		"${FILESDIR}/pip-23.1-no-coverage.patch"
-		# prepare to unbundle dependencies
-		"${FILESDIR}/pip-25.0.1-unbundle.patch"
+		# prepare to unbundle dependencies and remove redundant test wheels
+		"${FILESDIR}/pip-26.1.2-unbundle-r1.patch"
+		# https://github.com/pypa/pip/pull/14033
+		# + https://github.com/pypa/pip/commit/4c6d7471dec62fb004a47a7c2164b6b5b089ac06
+		"${FILESDIR}/pip-26.1.2-py315.patch"
 	)
 
 	distutils-r1_python_prepare_all
@@ -85,10 +89,12 @@ python_prepare_all() {
 		-e 's:from pip\._vendor import:import:g' \
 		-e 's:from pip\._vendor\.:from :g' \
 		{} + || die
+	sed -i -e '/_vendor.*\(COPYING\|LICENSE\)/d' pyproject.toml || die
 
 	if use test; then
 		local wheels=(
-			"${BROOT}"/usr/lib/python/ensurepip/{setuptools,wheel}-*.whl
+			"${BROOT}"/usr/lib/python/ensurepip/setuptools-*.whl
+			"${DISTDIR}/$(pypi_wheel_name flit-core "${FLIT_CORE_PV}")"
 		)
 		mkdir tests/data/common_wheels/ || die
 		cp "${wheels[@]}" tests/data/common_wheels/ || die
@@ -134,6 +140,7 @@ python_test() {
 		tests/functional/test_lock.py::test_lock_vcs
 		# broken by system site-packages use
 		tests/functional/test_freeze.py::test_freeze_with_setuptools
+		tests/functional/test_install.py::test_install_subprocess_output_handling
 		tests/functional/test_pip_runner_script.py::test_runner_work_in_environments_with_no_pip
 		tests/functional/test_uninstall.py::test_basic_uninstall_distutils
 		tests/unit/test_base_command.py::test_base_command_global_tempdir_cleanup
@@ -142,43 +149,19 @@ python_test() {
 		# broken by unbundling
 		"tests/functional/test_debug.py::test_debug[vendored library versions:]"
 		tests/functional/test_debug.py::test_debug__library_versions
+		tests/functional/test_freeze.py::test_freeze_multiple_exclude_with_all
+		tests/functional/test_install.py::test_install_package_with_same_name_in_curdir
+		tests/functional/test_pep517.py::test_nested_builds
 		tests/functional/test_python_option.py::test_python_interpreter
+		tests/functional/test_uninstall.py::test_basic_uninstall
 		tests/functional/test_uninstall.py::test_uninstall_non_local_distutils
 	)
 	local EPYTEST_IGNORE=(
+		# from upstream options
+		tests/tests_cache
 		# requires proxy.py
 		tests/functional/test_proxy.py
 	)
-
-	case ${EPYTHON} in
-		pypy3*)
-			EPYTEST_DESELECT+=(
-				# unexpected tempfiles?
-				tests/functional/test_install_config.py::test_do_not_prompt_for_authentication
-				tests/functional/test_install_config.py::test_prompt_for_authentication
-			)
-			;;
-		python3.14*)
-			EPYTEST_DESELECT+=(
-				# TODO: segfaults
-				tests/unit/test_collector.py::test_get_index_content_directory_append_index
-				# https://github.com/python/cpython/issues/125974
-				tests/unit/test_collector.py::test_ensure_quoted_url
-				tests/unit/test_finder.py::test_finder_priority_file_over_page
-				tests/unit/test_urls.py::test_path_to_url_unix
-				tests/unit/test_collector.py::test_clean_url_path
-				tests/unit/test_collector.py::test_clean_url_path_with_local_path
-				tests/unit/test_req.py::TestRequirementSet::test_download_info_local_editable_dir
-				tests/unit/test_req.py::test_parse_editable_local
-				tests/unit/test_req.py::test_parse_editable_local_extras
-				tests/unit/test_req.py::test_get_url_from_path__archive_file
-				tests/unit/test_req.py::test_get_url_from_path__installable_dir
-				tests/functional/test_lock.py::test_lock_wheel_from_findlinks
-				tests/functional/test_lock.py::test_lock_sdist_from_findlinks
-				tests/functional/test_lock.py::test_lock_local_editable_with_dep
-			)
-			;;
-	esac
 
 	if ! has_version "dev-python/cryptography[${PYTHON_USEDEP}]"; then
 		EPYTEST_DESELECT+=(
@@ -190,12 +173,13 @@ python_test() {
 	fi
 
 	local -x PIP_DISABLE_PIP_VERSION_CHECK=1
-	local EPYTEST_PLUGINS=( pytest-rerunfailures )
-	local EPYTEST_XDIST=1
+	local EPYTEST_PLUGINS=()
 	# rerunfailures because test suite breaks if packages are installed
-	# in parallel
-	epytest -m "not network" -o tmp_path_retention_policy=all \
-		--reruns=5 --use-venv
+	# to system site-packages while it's running
+	local EPYTEST_RERUNS=5
+	local EPYTEST_XDIST=1
+	epytest -m "not network" -o addopts= -o tmp_path_retention_policy=all \
+		--use-venv
 }
 
 python_install_all() {
