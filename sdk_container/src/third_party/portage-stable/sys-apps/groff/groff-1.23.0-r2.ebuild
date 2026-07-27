@@ -1,4 +1,4 @@
-# Copyright 1999-2023 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -13,7 +13,7 @@ if [[ ${PV} == *_rc* ]] ; then
 	SRC_URI="https://alpha.gnu.org/gnu/groff/${MY_P}.tar.gz"
 else
 	SRC_URI="mirror://gnu/groff/${MY_P}.tar.gz"
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 
 S="${WORKDIR}/${MY_P}"
@@ -37,6 +37,7 @@ DEPEND="${RDEPEND}"
 BDEPEND="
 	dev-lang/perl
 	sys-apps/texinfo
+	sys-devel/m4
 "
 
 DOCS=( BUG-REPORT ChangeLog MORE.STUFF NEWS PROBLEMS PROJECTS README TODO )
@@ -48,7 +49,8 @@ QA_CONFIG_IMPL_DECL_SKIP=(
 
 PATCHES=(
 	# bug #16108, bug #17580, bug #121502
-	"${FILESDIR}"/${PN}-1.19.2-man-unicode-dashes.patch
+	"${FILESDIR}"/${PN}-1.23.0-man-unicode-fix.patch
+	"${FILESDIR}"/${PN}-1.23.0-musl-getopt.patch
 )
 
 src_prepare() {
