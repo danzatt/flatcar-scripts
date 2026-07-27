@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 BASHCOMP_P=bashcomp-2.0.3
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..15} )
 
 inherit autotools python-any-r1
 
@@ -19,16 +19,15 @@ SRC_URI="
 
 LICENSE="GPL-2+"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~x64-macos"
 IUSE="+eselect test"
 RESTRICT="!test? ( test )"
 
-# completion collision with net-fs/mc
 RDEPEND="
 	>=app-shells/bash-4.3_p30-r1:0
 	sys-apps/miscfiles
 	!<app-text/tree-2.1.1-r1
-	!!net-fs/mc
+	!!<=net-fs/mc-2025.04.16.18.13.26-r0
 "
 BDEPEND="
 	test? (
@@ -46,7 +45,6 @@ PDEPEND="
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-2.14.0-optimize-kernel-modules.patch
-	"${FILESDIR}"/${PN}-2.16.0-libsecret-completion.patch
 )
 
 strip_completions() {
@@ -62,9 +60,6 @@ strip_completions() {
 		# Installed in app-editors/vim-core
 		xxd
 
-		# Now-dead symlinks to deprecated completions
-		hd ncal
-
 		# For GNU mailman, which isn't packaged. If mailman isn't installed,
 		# it triggers a QA warning.
 		arch
@@ -72,12 +67,9 @@ strip_completions() {
 
 	local file
 	for file in "${strip_completions[@]}"; do
-		rm "${ED}"/usr/share/bash-completion/completions/${file} ||
+		rm "${ED}"/usr/share/bash-completion/completions-core/${file}.bash ||
 			die "stripping ${file} failed"
 	done
-
-	# remove deprecated completions (moved to other packages)
-	rm "${ED}"/usr/share/bash-completion/completions/_* || die
 }
 
 python_check_deps() {
@@ -146,8 +138,8 @@ src_install() {
 	# install the python completions for all targets, bug #622892
 	local TARGET
 	for TARGET in "${PYTHON_COMPAT[@]}"; do
-		if [[ ! -e "${ED}"/usr/share/bash-completion/completions/${TARGET/_/.} ]]; then
-			dosym python "${ED}"/usr/share/bash-completion/completions/${TARGET/_/.}
+		if [[ ! -e "${ED}"/usr/share/bash-completion/completions-core/${TARGET/_/.}.bash ]]; then
+			dosym python.bash /usr/share/bash-completion/completions-core/${TARGET/_/.}.bash
 		fi
 	done
 
