@@ -1,12 +1,12 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 DISTUTILS_USE_PEP517=setuptools
 DISTUTILS_UPSTREAM_PEP517=standalone
-PYTHON_COMPAT=( pypy3_11 python3_{11..14} )
-RUST_MIN_VER=1.75.0
+PYTHON_COMPAT=( pypy3_11 python3_{11..15} )
+RUST_MIN_VER=1.89.0
 inherit cargo distutils-r1 flag-o-matic shell-completion toolchain-funcs
 
 DESCRIPTION="Build and publish crates with pyo3, rust-cpython and cffi bindings"
@@ -14,17 +14,18 @@ HOMEPAGE="https://www.maturin.rs/"
 SRC_URI="
 	https://github.com/PyO3/maturin/archive/refs/tags/v${PV}.tar.gz
 		-> ${P}.gh.tar.gz
-	https://dev.gentoo.org/~ionen/distfiles/${P}-vendor.tar.xz
+	https://distfiles.gentoo.org/pub/dev/ionen@gentoo.org/${P}-vendor.tar.xz
 "
 # ^ tarball also includes test-crates' Cargo.lock(s) crates for tests
 
-LICENSE="|| ( Apache-2.0 MIT ) doc? ( CC-BY-4.0 OFL-1.1 )"
+LICENSE="|| ( Apache-2.0 MIT ) doc? ( Apache-2.0 OFL-1.1 )"
 LICENSE+="
-	0BSD Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD Boost-1.0 MIT
-	MPL-2.0 Unicode-3.0 Unicode-DFS-2016
+	0BSD Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD
+	CDLA-Permissive-2.0 ISC MIT MIT-0 MPL-2.0 openssl Unicode-3.0 ZLIB
+	BZIP2
 " # crates
 SLOT="0"
-KEYWORDS="amd64 arm arm64 ~loong ~mips ~ppc ppc64 ~riscv ~s390 ~sparc x86"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 IUSE="doc +ssl test"
 RESTRICT="!test? ( test )"
 
@@ -36,7 +37,7 @@ RDEPEND="
 DEPEND="${RDEPEND}"
 BDEPEND="
 	virtual/pkgconfig
-	doc? ( app-text/mdbook )
+	doc? ( >=app-text/mdbook-0.5 )
 	test? (
 		$(python_gen_cond_dep 'dev-python/cffi[${PYTHON_USEDEP}]' 'python*')
 		dev-python/boltons[${PYTHON_USEDEP}]
@@ -69,15 +70,13 @@ src_prepare() {
 		# uv does not work easily w/ network-sandbox, force virtualenv
 		sed -i 's/"uv"/"uv-not-found"/' tests/common/mod.rs || die
 
-		# increase timeouts for tests (bug #950332)
-		sed -i '/^#\[timeout/s/secs(60)/secs(300)/' tests/run.rs || die
-
-		# used by *git_sdist_generator tests
+		# needed by several sdist:: tests
 		git init -q || die
 		git config --global user.email "larry@gentoo.org" || die
 		git config --global user.name "Larry the Cow" || die
 		git add . || die
 		git commit -qm init || die
+
 	fi
 }
 
@@ -102,7 +101,7 @@ src_configure() {
 python_compile_all() {
 	cargo_src_compile
 
-	use !doc || mdbook build -d html guide || die
+	use !doc || mdbook build -d "${T}"/html guide || die
 
 	if ! tc-is-cross-compiler; then
 		local maturin=$(cargo_target_dir)/maturin
@@ -122,29 +121,37 @@ python_test() {
 	# need this for (new) python versions not yet recognized by pyo3
 	local -x PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
-	local skip=(
+	local CARGO_SKIP_TESTS=(
 		# picky cli output test that easily benignly fail (bug #937992)
-		--skip cli_tests
-		# avoid need for wasm over a single hello world test
-		--skip integration_wasm_hello_world
+		cli_tests
 		# fragile depending on rust version, also wants libpypy*-c.so for pypy
-		--skip pyo3_no_extension_module
+		errors::pyo3_no_extension_module
+		# fails for unsupported rust targets, non-issue here (bug #973104)
+		errors::pypi_compatibility_linux_tag
 		# unimportant tests that require uv, and not obvious to get it
 		# to work with network-sandbox (not worth the trouble)
-		--skip develop_hello_world::case_2
-		--skip develop_pyo3_ffi_pure::case_2
-		# compliance test using zig requires an old libc to pass (bug #946967)
-		--skip integration_pyo3_mixed_py_subdir
+		develop::develop_uv_cases::case_1_hello_world
+		develop::develop_uv_cases::case_2_pyo3_ffi_pure
+		# compliance tests using zig (if present) need old libc (bug #946967)
+		integration::integration_cases::case_07_cffi_mixed_py_subdir
+		integration::integration_cases::case_16_pyo3_stub_generation_zig
+		# avoid need for wasm over a single hello world test
+		integration::integration_wasm_hello_world
+		# these currently attempt to install tomli regardless of python version
+		pep517::pep517_default_profile
+		pep517::pep517_editable_profile
+		# unimportant and simpler to skip, does not work with just `git init`
+		sdist::lib_with_parent_workspace_git_dep_sdist
 	)
 
-	cargo_src_test -- "${skip[@]}"
+	cargo_src_test
 }
 
 python_install_all() {
-	cargo_src_install
+	dobin "$(cargo_target_dir)"/maturin
 
 	dodoc Changelog.md README.md
-	use doc && dodoc -r guide/html
+	use doc && dodoc -r "${T}"/html
 
 	if ! tc-is-cross-compiler; then
 		dobashcomp "${T}"/${PN}
