@@ -1,11 +1,11 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
 WANT_LIBTOOL="none"
 
 inherit autotools check-reqs flag-o-matic multiprocessing pax-utils
-inherit prefix python-utils-r1 toolchain-funcs verify-sig
+inherit prefix toolchain-funcs verify-sig
 
 MY_PV=${PV/_rc/rc}
 MY_P="Python-${MY_PV%_p*}"
@@ -19,7 +19,7 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz
-	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	https://distfiles.gentoo.org/pub/proj/python/patchsets/${PYVER%t}/${PATCHSET}.tar.xz
 	verify-sig? (
 		https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz.asc
 	)
@@ -28,7 +28,7 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="PSF-2"
 SLOT="${PYVER}"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="
 	bluetooth debug +ensurepip examples gdbm libedit +ncurses pgo
 	+readline +sqlite +ssl test tk valgrind
@@ -49,11 +49,11 @@ RDEPEND="
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	sys-apps/util-linux
+	>=virtual/zlib-1.1.3:=
 	virtual/libcrypt:=
 	virtual/libintl
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
-	kernel_linux? ( sys-apps/util-linux:= )
 	ncurses? ( >=sys-libs/ncurses-5.2:= )
 	readline? (
 		!libedit? ( >=sys-libs/readline-4.1:= )
@@ -86,11 +86,6 @@ BDEPEND="
 	virtual/pkgconfig
 	verify-sig? ( sec-keys/openpgp-keys-python )
 "
-if [[ ${PV} != *_alpha* ]]; then
-	RDEPEND+="
-		dev-lang/python-exec[python_targets_python${PYVER/./_}(-)]
-	"
-fi
 PDEPEND="
 	ensurepip? (
 		dev-python/ensurepip-pip
@@ -154,10 +149,10 @@ build_cbuild_python() {
 	#
 	# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
 	local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-	local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
+	local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
 	local -x CFLAGS= LDFLAGS=
 	local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-	local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
+	local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
 
 	# We need to build our own Python on CBUILD first, and feed it in.
 	# bug #847910
@@ -591,29 +586,4 @@ src_install() {
 		-e "s:@PYDOC@:pydoc${PYVER}:" \
 		-i "${ED}/etc/conf.d/pydoc-${PYVER}" \
 		"${ED}/etc/init.d/pydoc-${PYVER}" || die "sed failed"
-
-	# python-exec wrapping support
-	local pymajor=${PYVER%.*}
-	local EPYTHON=python${PYVER}
-	local scriptdir=${D}$(python_get_scriptdir)
-	mkdir -p "${scriptdir}" || die
-	# python and pythonX
-	ln -s "../../../bin/${abiver}" "${scriptdir}/python${pymajor}" || die
-	ln -s "python${pymajor}" "${scriptdir}/python" || die
-	# python-config and pythonX-config
-	# note: we need to create a wrapper rather than symlinking it due
-	# to some random dirname(argv[0]) magic performed by python-config
-	cat > "${scriptdir}/python${pymajor}-config" <<-EOF || die
-		#!/bin/sh
-		exec "${abiver}-config" "\${@}"
-	EOF
-	chmod +x "${scriptdir}/python${pymajor}-config" || die
-	ln -s "python${pymajor}-config" "${scriptdir}/python-config" || die
-	# 2to3, pydoc
-	ln -s "../../../bin/2to3-${PYVER}" "${scriptdir}/2to3" || die
-	ln -s "../../../bin/pydoc${PYVER}" "${scriptdir}/pydoc" || die
-	# idle
-	if use tk; then
-		ln -s "../../../bin/idle${PYVER}" "${scriptdir}/idle" || die
-	fi
 }
