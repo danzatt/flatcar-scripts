@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # please keep this ebuild at EAPI 8 -- sys-apps/portage dep
@@ -8,18 +8,20 @@ DISTUTILS_EXT=1
 DISTUTILS_USE_PEP517=setuptools
 # DO NOT ADD pypy to PYTHON_COMPAT
 # pypy bundles a modified version of cffi. Use python_gen_cond_dep instead.
-PYTHON_COMPAT=( python3_{11..14} python3_14t )
+PYTHON_COMPAT=( python3_{12..15} python3_{14..15}t )
 
 inherit distutils-r1 toolchain-funcs pypi
 
 DESCRIPTION="Foreign Function Interface for Python calling C code"
 HOMEPAGE="
 	https://cffi.readthedocs.io/
+	https://github.com/python-cffi/cffi/
 	https://pypi.org/project/cffi/
 "
 
-LICENSE="MIT"
+LICENSE="MIT-0"
 SLOT="0/${PV}"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 
 # Needs recent libffi for HPPA fixes
 DEPEND="
@@ -34,13 +36,11 @@ RDEPEND="
 BDEPEND="
 	${RDEPEND}
 	virtual/pkgconfig
-	test? (
-		dev-python/py[${PYTHON_USEDEP}]
-	)
 "
 
 distutils_enable_sphinx doc/source
 EPYTEST_PLUGINS=()
+# xdist fails to collect the tests
 distutils_enable_tests pytest
 
 PATCHES=(
@@ -63,6 +63,10 @@ python_test() {
 	local EPYTEST_IGNORE=(
 		# these tests call pip
 		testing/cffi0/test_zintegration.py
+	)
+	local EPYTEST_DESELECT=(
+		# Internet, https://github.com/python-cffi/cffi/issues/255
+		testing/cffi1/test_cffi_gen_src_meson.py::test_meson_python_build
 	)
 
 	"${EPYTHON}" -c "import _cffi_backend as backend" || die
