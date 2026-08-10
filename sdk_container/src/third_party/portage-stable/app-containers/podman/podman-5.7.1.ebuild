@@ -1,20 +1,20 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 
 inherit go-module python-any-r1 tmpfiles toolchain-funcs linux-info
 
 DESCRIPTION="A tool for managing OCI containers and pods with Docker-compatible CLI"
-HOMEPAGE="https://github.com/containers/podman/ https://podman.io/"
+HOMEPAGE="https://github.com/podman-container-tools/podman/ https://podman.io/"
 
 if [[ ${PV} == 9999* ]]; then
 	inherit git-r3
-	EGIT_REPO_URI="https://github.com/containers/podman.git"
+	EGIT_REPO_URI="https://github.com/podman-container-tools/podman.git"
 else
-	SRC_URI="https://github.com/containers/podman/archive/v${PV/_rc/-rc}.tar.gz -> ${P}.tar.gz"
+	SRC_URI="https://github.com/podman-container-tools/podman/archive/v${PV/_rc/-rc}.tar.gz -> ${P}.tar.gz"
 	S="${WORKDIR}/${P/_rc/-rc}"
 	[[ ${PV} != *rc* ]] && \
 		KEYWORDS="amd64 arm64 ~loong ~riscv"
@@ -33,6 +33,7 @@ RDEPEND="
 	>=app-containers/conmon-2.1.10
 	>=app-containers/containers-common-0.58.0-r1
 	app-crypt/gpgme:=
+	dev-db/sqlite:3
 	dev-libs/libassuan:=
 	dev-libs/libgpg-error:=
 	sys-apps/shadow:=
@@ -51,7 +52,7 @@ BDEPEND="
 "
 
 PATCHES=(
-	"${FILESDIR}"/${PN}-5.2.5-togglable-seccomp.patch
+	"${FILESDIR}"/${PN}-5.5.2-togglable-seccomp.patch
 )
 
 CONFIG_CHECK="
@@ -69,7 +70,7 @@ src_prepare() {
 
 	# assure necessary files are present
 	local file
-	for file in apparmor_tag btrfs_installed_tag btrfs_tag systemd_tag; do
+	for file in apparmor_tag btrfs_installed_tag systemd_tag; do
 		[[ -f hack/"${file}".sh ]] || die
 	done
 
@@ -81,15 +82,14 @@ src_prepare() {
 		EOF
 	done
 
-	echo -e "#!/usr/bin/env bash\n echo" > hack/btrfs_installed_tag.sh || die
-	cat <<-EOF > hack/btrfs_tag.sh || die
+	cat <<-EOF > hack/btrfs_installed_tag.sh || die
 	#!/usr/bin/env bash
-	$(usex btrfs echo 'echo exclude_graphdriver_btrfs btrfs_noversion')
+	$(usex btrfs echo 'echo exclude_graphdriver_btrfs')
 	EOF
 }
 
 src_compile() {
-	export PREFIX="${EPREFIX}/usr"
+	export ETCDIR="${EPREFIX}/etc" PREFIX="${EPREFIX}/usr" BUILD_ORIGIN="Gentoo Portage"
 
 	# For non-live versions, prevent git operations which causes sandbox violations
 	# https://github.com/gentoo/gentoo/pull/33531#issuecomment-1786107493
@@ -123,6 +123,12 @@ src_install() {
 
 		insinto /etc/logrotate.d
 		newins "${FILESDIR}/podman.logrotated" podman
+
+		exeinto /etc/user/init.d
+		newexe "${FILESDIR}/podman-5.0.0_rc4.user.initd" podman
+
+		insinto /etc/user/conf.d
+		newins "${FILESDIR}/podman-5.0.0_rc4.user.confd" podman
 	fi
 
 	keepdir /var/lib/containers
