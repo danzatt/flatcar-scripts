@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,41 +7,42 @@ EAPI=8
 # check Fedora's packaging (https://src.fedoraproject.org/rpms/audit/tree/rawhide)
 # on bumps (or if hitting a bug) to see what they've done there.
 
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..15} )
+TMPFILES_OPTIONAL=1
 
-inherit autotools multilib-minimal toolchain-funcs python-r1 linux-info systemd usr-ldscript
+inherit autotools multilib-minimal toolchain-funcs python-r1 linux-info
+inherit systemd tmpfiles usr-ldscript
 
 DESCRIPTION="Userspace utilities for storing and processing auditing records"
 HOMEPAGE="https://people.redhat.com/sgrubb/audit/"
-SRC_URI="https://people.redhat.com/sgrubb/audit/${P}.tar.gz"
+SRC_URI="https://github.com/linux-audit/audit-userspace/archive/refs/tags/v${PV}.tar.gz -> ${P}.tar.gz"
+S="${WORKDIR}/audit-userspace-${PV}"
 
 LICENSE="GPL-2+ LGPL-2.1+"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86"
-IUSE="gssapi io-uring ldap python static-libs test"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+IUSE="build gssapi io-uring ldap python ssl static-libs"
 
 REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
-RESTRICT="!test? ( test )"
 
 RDEPEND="
 	sys-libs/libcap-ng
 	gssapi? ( virtual/krb5 )
-	ldap? ( net-nds/openldap:= )
+	ldap? ( net-nds/openldap:=[${MULTILIB_USEDEP}] )
 	python? ( ${PYTHON_DEPS} )
+	ssl? ( >=dev-libs/openssl-1.1.1:= )
 "
 DEPEND="
 	${RDEPEND}
-	>=sys-kernel/linux-headers-2.6.34
-	test? ( dev-libs/check )
+	>=sys-kernel/linux-headers-5
 "
 BDEPEND="
 	python? (
 		dev-lang/swig
-		$(python_gen_cond_dep '
-			dev-python/setuptools[${PYTHON_USEDEP}]
-		' python3_12)
+		dev-python/setuptools[${PYTHON_USEDEP}]
 	)
 "
+IDEPEND="!build? ( virtual/tmpfiles )"
 
 CONFIG_CHECK="~AUDIT"
 
@@ -51,12 +52,9 @@ QA_CONFIG_IMPL_DECL_SKIP=(
 	strndupa
 )
 
-PATCHES=(
-	"${FILESDIR}/${P}-implicit-builtin-functions.patch"
-	"${FILESDIR}/${P}-null-deref.patch"
-)
-
 src_prepare() {
+	default
+
 	# audisp-remote moved in multilib_src_install_all
 	sed -i \
 		-e "s,/sbin/audisp-remote,${EPREFIX}/usr/sbin/audisp-remote," \
@@ -65,7 +63,10 @@ src_prepare() {
 	# Disable installing sample rules so they can be installed as docs.
 	echo -e '%:\n\t:' | tee rules/Makefile.{am,in} >/dev/null || die
 
-	default
+	# Tries to send a real audit event so fails
+	sed -i -e '/test_audit_logging_comm_format()/d' \
+		lib/test/audit_logging_test.c || die
+
 	eautoreconf
 }
 
@@ -76,6 +77,7 @@ multilib_src_configure() {
 		--runstatedir="${EPREFIX}"/run
 		$(use_enable gssapi gssapi-krb5)
 		$(use_enable ldap zos-remote)
+		$(use_enable ssl tls)
 		$(use_enable static-libs static)
 		$(use_with arm)
 		$(use_with arm64 aarch64)
@@ -100,6 +102,9 @@ multilib_src_configure() {
 
 		python_foreach_impl python_configure
 	fi
+
+	# Make target bindings/python/auparse_python.c doesn't get copied to ${BUILD_DIR}. bug #944338
+	ln -s "${S}/bindings/python/auparse_python.c" "${BUILD_DIR}/bindings/python/auparse_python.c" || die
 }
 
 src_configure() {
@@ -112,9 +117,11 @@ src_configure() {
 }
 
 multilib_src_compile() {
-	if multilib_is_native_abi; then
-		default
+	default
 
+	# We could copy this for tests but the only thing the bindings do
+	# in check-local is rebuild (!) with -Wl,--no-undefined.
+	if multilib_is_native_abi; then
 		local native_build="${BUILD_DIR}"
 
 		python_compile() {
@@ -123,17 +130,13 @@ multilib_src_compile() {
 		}
 
 		use python && python_foreach_impl python_compile
-	else
-		emake -C common
-		emake -C lib
-		emake -C auparse
 	fi
 }
 
 multilib_src_install() {
-	if multilib_is_native_abi; then
-		emake DESTDIR="${D}" initdir="$(systemd_get_systemunitdir)" install
+	emake DESTDIR="${D}" initdir="$(systemd_get_systemunitdir)" install
 
+	if multilib_is_native_abi; then
 		local native_build="${BUILD_DIR}"
 
 		python_install() {
@@ -146,9 +149,6 @@ multilib_src_install() {
 
 		# Things like shadow use this so we need to be in /
 		gen_usr_ldscript -a audit auparse
-	else
-		emake -C lib DESTDIR="${D}" install
-		emake -C auparse DESTDIR="${D}" install
 	fi
 }
 
@@ -161,7 +161,7 @@ multilib_src_install_all() {
 	docinto rules
 	dodoc rules/*rules
 
-	newinitd "${FILESDIR}"/auditd-init.d-2.4.3 auditd
+	newinitd "${FILESDIR}"/auditd-init.d-4.1.4 auditd
 	newconfd "${FILESDIR}"/auditd-conf.d-2.1.3 auditd
 
 	if [[ -f "${ED}"/sbin/audisp-remote ]] ; then
@@ -186,6 +186,7 @@ multilib_src_install_all() {
 
 pkg_postinst() {
 	lockdown_perms "${EROOT}"
+	! use build && tmpfiles_process audit.conf
 }
 
 lockdown_perms() {
