@@ -1,9 +1,9 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit flag-o-matic libtool multilib-minimal
+inherit libtool multilib-minimal
 
 DESCRIPTION="Access control list utilities, libraries, and headers"
 HOMEPAGE="https://savannah.nongnu.org/projects/acl"
@@ -11,7 +11,7 @@ SRC_URI="mirror://nongnu/${PN}/${P}.tar.xz"
 
 LICENSE="LGPL-2.1+ GPL-2"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="nls static-libs"
 
 RDEPEND="
@@ -19,6 +19,10 @@ RDEPEND="
 "
 DEPEND="${RDEPEND}"
 BDEPEND="nls? ( sys-devel/gettext )"
+
+PATCHES=(
+	"${FILESDIR}/acl-2.3.2-memory.patch"
+)
 
 src_prepare() {
 	default
@@ -28,9 +32,6 @@ src_prepare() {
 }
 
 multilib_src_configure() {
-	# Filter out -flto flags as they break getfacl/setfacl binaries (bug #667372)
-	filter-lto
-
 	local myeconfargs=(
 		--bindir="${EPREFIX}"/bin
 		--libexecdir="${EPREFIX}"/usr/$(get_libdir)
