@@ -1,5 +1,67 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
+
+# Alfred Wingate <parona@protonmail.com> (2026-07-26)
+# Firefox not keyworded here
+dev-util/selenium-manager test
+
+# Pacho Ramos <pacho@gentoo.org> (2026-07-05)
+# QT6 is not keyworded here, bug #977775
+dev-libs/appstream test
+
+# Viorel Munteanu <ceamac@gentoo.org> (2026-05-14)
+# dev-libs/efl not keyworded here
+app-misc/fastfetch efl
+
+# Pacho Ramos <pacho@gentoo.org> (2026-05-09)
+# dev-libs/appstream not keyworded, bug #977775
+app-misc/media-player-info test
+dev-util/meld test
+
+# Jaco Kroon <jkroon@gentoo.org> (2026-05-04)
+# media-libs/libyuv is not keyworded
+net-libs/pjproject libyuv
+
+# Alfred Wingate <parona@protonmail.com> (2026-05-03)
+# dev-libs/libthai not keyworded here
+x11-libs/pango libthai
+
+# Brett A C Sheffield <bacs@librecast.net> (2026-04-22)
+# virtual/pandoc is not keyworded here
+>=dev-libs/xmlsec-1.3.11 doc
+
+# Sam James <sam@gentoo.org> (2026-04-11)
+# Unkeyworded dependencies
+sys-libs/libcap-ng bpf
+
+# Robin H. Johnson <robbat2@gentoo.org> (2026-03-22)
+# sys-block/vdo not keyworded here
+sys-fs/lvm2 vdo
+
+# Ionen Wolkens <ionen@gentoo.org> (2026-03-16)
+# media-libs/opencolorio is not keyworded here
+media-video/ffmpeg opencolorio
+media-video/ffmpeg-compat opencolorio
+
+# Jaco Kroon <jaco@uls.co.za> (2026-02-06)
+# Requires sys-auth/libyubikey
+net-dialup/freeradius yubikey
+
+# Ian Jordan <immoloism@gmail.com> (2026-02-04)
+# Unkeyworded dependencies (bug #951360)
+app-accessibility/brltty ocaml ocamlopt
+
+# Sam James <sam@gentoo.org> (2026-01-16)
+# Unkeyworded dependencies (bug #968238)
+media-video/pipewire libcamera
+
+# Lukas Schmelting <lschmelting@posteo.com> (2025-11-09)
+# gnome-online-accounts is unkeyworded and in use.mask for sparc
+gnome-base/gvfs gnome-online-accounts google onedrive
+
+# Philipp Rösner <rndxelement@protonmail.com> (2025-09-23)
+# media-libs/zxingcpp is not keyworded here
+app-text/mupdf barcode
 
 # Michał Górny <mgorny@gentoo.org> (2025-08-21)
 # Requires dev-python/qtconsole.
@@ -51,10 +113,6 @@ media-libs/imlib2 y4m
 # libgccjit testsuite: bug #953775 (https://gcc.gnu.org/PR119767).
 app-editors/emacs jit
 sys-devel/gcc jit
-
-# Cristian Othón Martínez Vera <cfuga@cfuga.mx> (2025-04-09)
-# dev-db/tinycdb is not keyworded here
-mail-mta/sendmail tinycdb
 
 # NRK <nrk@disroot.org> (2025-03-17)
 # media-libs/libyuv is not keyworded
@@ -194,7 +252,6 @@ app-crypt/mit-krb5 keyutils
 app-emulation/qemu keyutils
 net-fs/samba ads
 net-fs/cifs-utils ads creds pam
->=sys-libs/libblockdev-3.0.0 cryptsetup
 sys-libs/libnvme keyutils
 
 # Sam James <sam@gentoo.org> (2024-01-02)
@@ -221,6 +278,7 @@ media-video/rav1e -capi
 # Michał Górny <mgorny@gentoo.org> (2023-10-15)
 # Need dev-python/notebook (that indirectly requires net-libs/nodejs).
 dev-python/ipython notebook
+dev-python/matplotlib-inline test
 dev-python/nbclient test
 dev-python/nbconvert test
 
@@ -397,8 +455,10 @@ dev-cpp/eigen test
 # Sam James <sam@gentoo.org> (2021-04-27)
 # Deps not yet tested/keyworded.
 llvm-core/clang-common default-compiler-rt default-lld
-llvm-core/clang-runtime compiler-rt default-compiler-rt default-lld
+llvm-core/clang-linker-config default-lld
+llvm-runtimes/clang-runtime compiler-rt default-compiler-rt default-lld
 llvm-core/llvm z3
+llvm-runtimes/clang-rtlib-config default-compiler-rt
 
 # Sam James <sam@gentoo.org> (2021-03-19)
 # On sparc, we have to force sys-apps/grep[libsigsegv]
@@ -573,11 +633,6 @@ dev-lang/spidermonkey jit
 # No ffmpeg keywords on sparc
 media-sound/dir2ogg aac wma
 
-# Sergei Trofimovich <slyfox@gentoo.org> (2018-08-30)
-# dev-games/openscenegraph is a heavy unkeyworded dependency.
-# Skip keywording it for now.
-app-office/scribus osg
-
 # Sergei Trofimovich <slyfox@gentoo.org> (2018-05-08)
 # Mask USE=games to avoid unkeyworded games-util/qstat.
 net-analyzer/monitoring-plugins game
@@ -623,7 +678,7 @@ xfce-base/xfwm4 xpresent
 
 # Michał Górny <mgorny@gentoo.org> (2017-03-23)
 # Most of clang runtimes are not supported here
-llvm-core/clang-runtime openmp sanitize
+llvm-runtimes/clang-runtime openmp sanitize
 
 # Pacho Ramos <pacho@gentoo.org> (2017-02-04)
 # Missing keywords, bug #599572
@@ -631,8 +686,8 @@ net-libs/gnome-online-accounts gnome
 x11-terms/gnome-terminal gnome-shell
 
 # Justin Lecher <jlec@gentoo.org> (2017-01-15)
-# unkeyworded rev deps
-dev-games/openscenegraph gdal las
+# unkeyworded rev dep
+dev-games/openscenegraph gdal
 
 # Pacho Ramos <pacho@gentoo.org> (2017-01-02)
 # Don't keyword redis
@@ -754,7 +809,6 @@ x11-misc/colord argyllcms extra-print-profiles
 # MySQL 5.5 wants systemtap, tcmalloc & jemalloc
 >=dev-db/mysql-5.5 jemalloc
 >=dev-db/mariadb-5.5 systemtap jemalloc
->=dev-db/percona-server-5.5 jemalloc
 
 # Diego Elio Pettenò <flameeyes@gentoo.org> (2012-06-24)
 # Requires libpcre with jit
@@ -813,3 +867,7 @@ net-im/pidgin zephyr
 # Ultrabug <ultrabug@gentoo.org> (2011-09-05)
 # missing keyword for net-libs/zeromq
 app-admin/rsyslog zeromq
+
+# Lukas Schmelting <lschmelting@posteo.com>
+# Depends on unkeyworded x11-misc/xvfb-run
+>=x11-libs/libnotify-0.8.7 test
