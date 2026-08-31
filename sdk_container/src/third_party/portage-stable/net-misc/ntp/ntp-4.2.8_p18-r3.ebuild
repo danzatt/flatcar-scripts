@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -13,7 +13,7 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="HPND BSD ISC"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="caps debug openntpd parse-clocks readline samba selinux snmp ssl +threads vim-syntax zeroconf"
 
 DEPEND="
@@ -46,6 +46,9 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-4.2.8-sntp-test-pthreads.patch # bug #563922
 	"${FILESDIR}"/${PN}-4.2.8_p14-add_cap_ipc_lock.patch # bug #711530
 	"${FILESDIR}"/${PN}-4.2.8_p15-configure-clang16.patch
+	"${FILESDIR}"/${PN}-4.2.8_p18-c99.patch # bug #956643
+	"${FILESDIR}"/${PN}-4.2.8_p18-r2-bind-fail-NULL-dereference.patch # bug #962770
+	"${FILESDIR}"/${PN}-4.2.8-configure.patch # bug 969483
 )
 
 src_prepare() {
@@ -68,6 +71,7 @@ src_configure() {
 
 	# bug #264109
 	append-cppflags -D_GNU_SOURCE
+	append-cflags -fno-strict-overflow
 
 	# https://bugs.gentoo.org/922508
 	append-lfs-flags
@@ -121,7 +125,7 @@ src_install() {
 
 	newinitd "${FILESDIR}"/ntpd.rc-r2 ntpd
 	newconfd "${FILESDIR}"/ntpd.confd ntpd
-	newinitd "${FILESDIR}"/ntp-client.rc ntp-client
+	newinitd "${FILESDIR}"/ntp-client.rc-r1 ntp-client
 	newconfd "${FILESDIR}"/ntp-client.confd ntp-client
 	newinitd "${FILESDIR}"/sntp.rc sntp
 	newconfd "${FILESDIR}"/sntp.confd sntp
