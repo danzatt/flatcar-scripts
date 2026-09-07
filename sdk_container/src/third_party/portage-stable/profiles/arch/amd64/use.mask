@@ -1,8 +1,17 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # Unmask the flag which corresponds to ARCH.
 -amd64
+
+# Sam James <sam@gentoo.org> (2025-09-19)
+# libquadmath from GCC is only available on some arches
+# https://gcc.gnu.org/PR96016
+-perl_features_quadmath
+
+# Michał Górny <mgorny@gentoo.org> (2025-09-02)
+# dev-python/pypi-attestations is keyworded here.
+-verify-provenance
 
 # Paul Zander <negril.nx+gentoo@gmail.com> (2025-05-01)
 # media-libs/libspng only keyworded on amd64, arm64
@@ -40,6 +49,7 @@
 # Paul Zander <negril.nx+gentoo@gmail.com> (2023-11-17)
 # ROCm/HIP works here
 -hip
+-hiprt
 
 # Nowa Ammerlaan <nowa@gentoo.org> (2023-07-11)
 # Unmask secureboot flag on arches where sbsigntools is keyworded
@@ -85,11 +95,6 @@
 # sys-apps/apparmor
 # sys-apps/apparmor-utils
 -apparmor
-
-# Michał Górny <mgorny@gentoo.org> (2014-03-30)
-# PyPy is keyworded on this arch.
--python_targets_pypy3_11
--python_single_target_pypy3_11
 
 # Andrey Grozin <grozin@gentoo.org> (2014-06-25)
 # keyworded on amd64
