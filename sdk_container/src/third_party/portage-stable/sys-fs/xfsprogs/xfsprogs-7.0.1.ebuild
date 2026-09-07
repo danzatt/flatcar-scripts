@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -11,7 +11,7 @@ SRC_URI="https://www.kernel.org/pub/linux/utils/fs/xfs/${PN}/${P}.tar.xz"
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="icu libedit nls selinux static-libs"
 
 RDEPEND="
@@ -23,14 +23,10 @@ RDEPEND="
 "
 DEPEND="
 	${RDEPEND}
-	>=sys-kernel/linux-headers-6.11
+	>=sys-kernel/linux-headers-6.18
 "
 BDEPEND="nls? ( sys-devel/gettext )"
 RDEPEND+=" selinux? ( sec-policy/selinux-xfs )"
-
-PATCHES=(
-	"${FILESDIR}"/${PN}-6.13.0-32-bit.patch
-)
 
 src_prepare() {
 	default
@@ -62,9 +58,8 @@ src_configure() {
 	# Avoid automagic on libdevmapper (bug #709694)
 	export ac_cv_search_dm_task_create=no
 
-	# bug 903611, 948468
-	use elibc_musl && \
-		append-flags -D_LARGEFILE64_SOURCE -DOVERRIDE_SYSTEM_STATX
+	# bug 903611
+	use elibc_musl && append-flags -D_LARGEFILE64_SOURCE
 
 	# Upstream does NOT support --disable-static anymore,
 	# https://www.spinics.net/lists/linux-xfs/msg30185.html
@@ -76,6 +71,8 @@ src_configure() {
 		# The default value causes double 'lib'
 		--localstatedir="${EPREFIX}/var"
 		--with-crond-dir="${EPREFIX}/etc/cron.d"
+		# TODO: Write equivalent OpenRC init scripts for installed systemd units
+		# Possibly document timer equivalents too for cron
 		--with-systemd-unit-dir="$(systemd_get_systemunitdir)"
 		--with-udev-rule-dir="$(get_udevdir)/rules.d"
 		$(use_enable icu libicu)
@@ -87,9 +84,7 @@ src_configure() {
 }
 
 src_compile() {
-	# -j1 for:
-	# gmake[2]: *** No rule to make target '../libhandle/libhandle.la', needed by 'xfs_spaceman'.  Stop.
-	emake V=1 -j1
+	emake V=1
 }
 
 src_install() {
