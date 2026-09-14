@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,9 +6,10 @@ EAPI=8
 GENTOO_DEPEND_ON_PERL=no
 
 # bug #329479: git-remote-testgit is not multiple-version aware
-PYTHON_COMPAT=( python3_{11..14} )
-
-inherit toolchain-funcs perl-module bash-completion-r1 optfeature plocale python-single-r1 systemd meson
+PYTHON_COMPAT=( python3_{12..14} )
+CARGO_OPTIONAL=1
+inherit cargo flag-o-matic toolchain-funcs perl-module shell-completion
+inherit optfeature plocale python-single-r1 systemd meson
 
 PLOCALES="bg ca de es fr is it ko pt_PT ru sv vi zh_CN"
 
@@ -50,7 +51,7 @@ if [[ ${PV} != *9999 ]]; then
 	SRC_URI+=" doc? ( ${SRC_URI_KORG}/${PN}-htmldocs-${DOC_VER}.tar.${SRC_URI_SUFFIX} )"
 
 	if [[ ${PV} != *_rc* ]] ; then
-		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+		KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 	fi
 fi
 
@@ -58,12 +59,12 @@ S="${WORKDIR}"/${MY_P}
 
 LICENSE="GPL-2"
 SLOT="0"
-IUSE="+curl cgi cvs doc keyring +gpg highlight +iconv mediawiki +nls +pcre perforce +perl +safe-directory selinux subversion test tk +webdav xinetd"
+IUSE="+curl cgi cvs doc keyring +gpg highlight +iconv +nls +pcre perforce +perl +rust +safe-directory selinux subversion test tk +webdav xinetd"
 
 # Common to both DEPEND and RDEPEND
 DEPEND="
 	dev-libs/openssl:=
-	sys-libs/zlib
+	virtual/zlib:=
 	curl? (
 		net-misc/curl
 		webdav? ( dev-libs/expat )
@@ -79,7 +80,7 @@ DEPEND="
 "
 RDEPEND="
 	${DEPEND}
-	gpg? ( app-crypt/gnupg )
+	gpg? ( app-alternatives/gpg )
 	perl? (
 		dev-perl/Error
 		dev-perl/MailTools
@@ -93,11 +94,6 @@ RDEPEND="
 			>=dev-vcs/cvsps-2.1:0
 			dev-perl/DBI
 			dev-perl/DBD-SQLite
-		)
-		mediawiki? (
-			dev-perl/DateTime-Format-ISO8601
-			dev-perl/HTML-Tree
-			dev-perl/MediaWiki-API
 		)
 		subversion? (
 			dev-vcs/subversion[-dso(-),perl]
@@ -122,6 +118,7 @@ BDEPEND="
 	)
 	keyring? ( virtual/pkgconfig )
 	nls? ( sys-devel/gettext )
+	rust? ( ${RUST_DEPEND} )
 	test? (
 		app-arch/unzip
 		app-crypt/gnupg
@@ -139,7 +136,6 @@ SITEFILE="50${PN}-gentoo.el"
 REQUIRED_USE="
 	cgi? ( perl )
 	cvs? ( perl )
-	mediawiki? ( perl )
 	perforce? ( ${PYTHON_REQUIRED_USE} )
 	subversion? ( perl )
 	webdav? ( curl )
@@ -148,12 +144,16 @@ REQUIRED_USE="
 RESTRICT="!test? ( test )"
 
 PATCHES=(
-	"${FILESDIR}"/${PN}-2.48.1-macos-no-fsmonitor.patch
+	"${FILESDIR}"/${PN}-2.55.0-0001-macos-no-fsmonitor.patch
 
 	# This patch isn't merged upstream but is kept in the ebuild by
 	# demand from developers. It's opt-in (needs a config option)
 	# and the documentation mentions that it is a Gentoo addition.
 	"${FILESDIR}"/${PN}-2.50.0-diff-implement-config.diff.renames-copies-harder.patch
+
+	"${FILESDIR}"/${PN}-2.54.0-0001-rust-don-t-pass-quiet-to-cargo.patch
+	"${FILESDIR}"/${PN}-2.54.0-0002-rust-respect-CARGO-environment-variable.patch
+	"${FILESDIR}"/${PN}-2.55.0-cargo-meson-cross.patch
 )
 
 pkg_setup() {
@@ -165,6 +165,10 @@ pkg_setup() {
 
 	if use perforce ; then
 		python-single-r1_pkg_setup
+	fi
+
+	if use rust ; then
+		rust_pkg_setup
 	fi
 }
 
@@ -184,6 +188,7 @@ src_unpack() {
 		git-r3_src_unpack
 	fi
 
+	use rust && cargo_gen_config
 }
 
 src_prepare() {
@@ -229,11 +234,14 @@ src_configure() {
 		$(meson_feature curl)
 		$(meson_feature cgi gitweb)
 		$(meson_feature webdav expat)
+		$(meson_feature tk gitk)
+		$(meson_feature tk git_gui)
 		$(meson_feature iconv)
 		$(meson_feature nls gettext)
 		$(meson_feature pcre pcre2)
 		$(meson_feature perl)
 		$(meson_feature perforce python)
+		$(meson_feature rust)
 		$(meson_use test tests)
 
 		-Dcontrib=$(IFS=, ; echo "${contrib[*]}" )
@@ -246,11 +254,13 @@ src_configure() {
 	)
 
 	[[ ${CHOST} == *-darwin* ]] && emesonargs+=( -Dfsmonitor=false )
+	[[ ${CHOST} == *-solaris* ]] && append-flags -D__EXTENSIONS__
 
 	# For non-live, we use a downloaded docs tarball instead.
 	if [[ ${PV} == *9999 ]] || use doc ; then
 		emesonargs+=(
 			-Ddocs="man$(usev doc ',html')"
+			-Dhtmldir="${EPREFIX}/usr/share/doc/${PF}/html"
 		)
 	fi
 
@@ -266,18 +276,6 @@ src_configure() {
 	fi
 
 	meson_src_configure
-
-	if use tk ; then
-		local tkdir
-		for tkdir in git-gui gitk-git ; do
-			(
-				EMESON_SOURCE="${S}"/${tkdir}
-				BUILD_DIR="${WORKDIR}"/${tkdir}_build
-				emesonargs=()
-				meson_src_configure
-			)
-		done
-	fi
 }
 
 git_emake() {
@@ -308,21 +306,10 @@ git_emake() {
 }
 
 src_compile() {
-	meson_src_compile
-
-	if use mediawiki ; then
-		git_emake -C contrib/mw-to-git
-	fi
-
-	if use tk ; then
-		local tkdir
-		for tkdir in git-gui gitk-git ; do
-			(
-				EMESON_SOURCE="${S}"/${tkdir}
-				BUILD_DIR="${WORKDIR}"/${tkdir}_build
-				meson_src_compile
-			)
-		done
+	if use rust; then # bug #978391
+		cargo_env meson_src_compile
+	else
+		meson_src_compile
 	fi
 
 	if use doc ; then
@@ -344,11 +331,6 @@ src_test() {
 src_install() {
 	meson_src_install
 
-	if use doc ; then
-		cp -r "${ED}"/usr/share/doc/git-doc/. "${ED}"/usr/share/doc/${PF}/html || die
-		rm -rf "${ED}"/usr/share/doc/git-doc/ || die
-	fi
-
 	# Depending on the tarball and manual rebuild of the documentation, the
 	# manpages may exist in either OR both of these directories.
 	find man?/*.[157] >/dev/null 2>&1 && doman man?/*.[157]
@@ -364,6 +346,7 @@ src_install() {
 
 	newbashcomp contrib/completion/git-completion.bash ${PN}
 	bashcomp_alias git gitk
+	newzshcomp contrib/completion/git-completion.zsh _${PN}
 	# Not really a bash-completion file (bug #477920)
 	# but still needed uncompressed (bug #507480)
 	insinto /usr/share/${PN}
@@ -372,8 +355,6 @@ src_install() {
 	#dobin contrib/fast-import/git-p4 # Moved upstream
 	#dodoc contrib/fast-import/git-p4.txt # Moved upstream
 	newbin contrib/fast-import/import-tars.perl import-tars
-	exeinto /usr/libexec/git-core/
-	newexe contrib/git-resurrect.sh git-resurrect
 
 	# diff-highlight
 	dobin contrib/diff-highlight/diff-highlight
@@ -388,25 +369,18 @@ src_install() {
 	# The following are excluded:
 	# completion - installed above
 	# diff-highlight - done above
-	# emacs - removed upstream
-	# examples - these are stuff that is not used in Git anymore actually
 	# git-jump - done above
 	# gitview - installed above
 	# p4import - excluded because fast-import has a better one
 	# patches - stuff the Git guys made to go upstream to other places
-	# persistent-https - TODO
-	# mw-to-git - TODO
 	# subtree - built seperately
 	# svnimport - use git-svn
 	# thunderbird-patch-inline - fixes thunderbird
 	local contrib_objects=(
 		buildsystems
 		fast-import
-		hooks
-		remotes2config.sh
 		rerere-train.sh
 		stats
-		workdir
 	)
 	local i
 	for i in "${contrib_objects[@]}" ; do
@@ -440,10 +414,6 @@ src_install() {
 		mv "${ED}"/usr/share/perl5/Git "${ED}/$(perl_get_vendorlib)" || die
 	fi
 
-	if use mediawiki ; then
-		git_emake -C contrib/mw-to-git DESTDIR="${D}" install
-	fi
-
 	if ! use subversion ; then
 		rm -f "${ED}"/usr/libexec/git-core/git-svn \
 			"${ED}"/usr/share/man/man1/git-svn.1*
@@ -459,17 +429,6 @@ src_install() {
 		newconfd "${FILESDIR}"/git-daemon.confd git-daemon
 		systemd_newunit "${FILESDIR}/git-daemon_at-r1.service" "git-daemon@.service"
 		systemd_dounit "${FILESDIR}/git-daemon.socket"
-	fi
-
-	if use tk ; then
-		local tkdir
-		for tkdir in git-gui gitk-git ; do
-			(
-				EMESON_SOURCE="${S}"/${tkdir}
-				BUILD_DIR="${WORKDIR}"/${tkdir}_build
-				meson_src_install
-			)
-		done
 	fi
 
 	perl_delete_localpod
@@ -491,6 +450,14 @@ pkg_postinst() {
 		elog "completion."
 		elog "Please read /usr/share/git/git-prompt.sh for Git bash prompt"
 		elog "Note that the prompt bash code is now in that separate script"
+	fi
+
+	if has_version app-shells/zsh ; then
+		elog 'There are two competing zsh completions available for Git.'
+		elog 'One is from app-shells/zsh, the other from dev-vcs/git.'
+		elog 'To choose between them, order the entries of $fpath so that your'
+		elog 'desired completion is earlier in the list or symlink the relevant'
+		elog 'script into a personal override directory early on fpath.'
 	fi
 
 	optfeature_header "Some scripts require additional dependencies:"
