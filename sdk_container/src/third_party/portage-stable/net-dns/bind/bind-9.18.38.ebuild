@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -15,8 +15,8 @@ S="${WORKDIR}/${PN}-${MY_PV}"
 
 LICENSE="MPL-2.0"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux"
-IUSE="+caps dnstap doc doh fixed-rrset idn jemalloc geoip gssapi lmdb selinux static-libs test xml"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
+IUSE="+caps dnstap doc doh fixed-rrset idn jemalloc geoip gssapi lmdb selinux test xml"
 RESTRICT="!test? ( test )"
 
 DEPEND="
@@ -24,7 +24,7 @@ DEPEND="
 	acct-user/named
 	dev-libs/json-c:=
 	>=dev-libs/libuv-1.37.0:=
-	sys-libs/zlib:=
+	virtual/zlib:=
 	dev-libs/openssl:=[-bindist(-)]
 	caps? ( >=sys-libs/libcap-2.1.0 )
 	dnstap? (
@@ -90,7 +90,6 @@ src_configure() {
 		$(use_enable doh)
 		$(use_with doh libnghttp2)
 		$(use_enable fixed-rrset)
-		$(use_enable static-libs static)
 		$(use_enable geoip)
 		$(use_with test cmocka)
 		$(use_with geoip maxminddb)
@@ -140,9 +139,7 @@ src_install() {
 
 	newenvd "${FILESDIR}"/10bind.env 10bind
 
-	if ! use static-libs ; then
-		find "${ED}"/usr/lib* -name '*.la' -delete || die
-	fi
+	find "${ED}"/usr/lib* -name '*.la' -delete || die
 
 	#
 	# /var/bind
