@@ -1,9 +1,9 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..14} )
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/wget.asc
 inherit flag-o-matic python-any-r1 toolchain-funcs unpacker verify-sig
 
@@ -14,31 +14,35 @@ SRC_URI+=" verify-sig? ( mirror://gnu/wget/${P}.tar.lz.sig )"
 
 LICENSE="GPL-3+"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
-IUSE="cookie-check debug gnutls idn libproxy metalink nls ntlm pcre +ssl static test uuid zlib"
-REQUIRED_USE="ntlm? ( !gnutls ssl ) gnutls? ( ssl )"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
+IUSE="debug gnutls idn libproxy metalink nls ntlm pcre +psl +ssl static test uuid zlib"
+REQUIRED_USE="
+	ntlm? ( !gnutls ssl )
+	gnutls? ( ssl )
+	static? ( !libproxy )
+"
 RESTRICT="!test? ( test )"
 
 # * Force a newer libidn2 to avoid libunistring deps. #bug #612498
 # * Metalink can use gpgme automagically (so let's always depend on it)
 # for signed metalink resources.
 LIB_DEPEND="
-	cookie-check? ( net-libs/libpsl )
-	idn? ( >=net-dns/libidn2-0.14:=[static-libs(+)] )
+	idn? ( >=net-dns/libidn2-0.14:=[static-libs(-)] )
 	libproxy? ( net-libs/libproxy )
 	metalink? (
-		app-crypt/gpgme:=
-		media-libs/libmetalink
+		app-crypt/gpgme:=[static-libs(-)]
+		media-libs/libmetalink[static-libs(-)]
 	)
-	pcre? ( dev-libs/libpcre2[static-libs(+)] )
+	pcre? ( dev-libs/libpcre2[static-libs(-)] )
+	psl? ( net-libs/libpsl[static-libs(-)] )
 	ssl? (
-		gnutls? ( net-libs/gnutls:=[static-libs(+)] )
-		!gnutls? ( dev-libs/openssl:=[static-libs(+)] )
+		gnutls? ( net-libs/gnutls:=[static-libs(-)] )
+		!gnutls? ( dev-libs/openssl:=[static-libs(-)] )
 	)
-	uuid? ( sys-apps/util-linux[static-libs(+)] )
-	zlib? ( sys-libs/zlib[static-libs(+)] )
+	uuid? ( sys-apps/util-linux[static-libs(-)] )
+	zlib? ( virtual/zlib:=[static-libs(-)] )
 "
-RDEPEND="!static? ( ${LIB_DEPEND//\[static-libs(+)]} )"
+RDEPEND="!static? ( ${LIB_DEPEND//\[static-libs(-)]} )"
 DEPEND="
 	${RDEPEND}
 	static? ( ${LIB_DEPEND} )
@@ -63,6 +67,10 @@ DOCS=( AUTHORS MAILING-LIST NEWS README )
 
 # gnulib FPs
 QA_CONFIG_IMPL_DECL_SKIP=( unreachable MIN alignof static_assert fpurge )
+
+PATCHES=(
+	"${FILESDIR}"/${PN}-1.25.0-openssl-4.patch
+)
 
 pkg_setup() {
 	use test && python-any-r1_pkg_setup
@@ -108,7 +116,7 @@ src_configure() {
 		$(use_enable pcre pcre2)
 		$(use_enable ssl digest)
 		$(use_enable ssl opie)
-		$(use_with cookie-check libpsl)
+		$(use_with psl libpsl)
 		$(use_enable idn iri)
 		$(use_enable libproxy)
 		$(use_with metalink)
