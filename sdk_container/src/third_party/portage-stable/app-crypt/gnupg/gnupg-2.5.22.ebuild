@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -23,25 +23,26 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="GPL-3+"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
-IUSE="bzip2 doc ldap nls readline selinux +smartcard ssl test tofu tools usb user-socket wks-server"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
+IUSE="+alternatives bzip2 doc ldap nls readline selinux +smartcard ssl test +tofu tpm tools usb user-socket wks-server"
 RESTRICT="!test? ( test )"
+REQUIRED_USE="test? ( tofu )"
 
-# Existence of executables is checked during configuration.
-# Note: On each bump, update dep bounds on each version from configure.ac!
+# Existence of executables is checked during configuration
 DEPEND="
-	>=dev-libs/libassuan-2.5.0:=
-	>=dev-libs/libgcrypt-1.8.0:=
-	>=dev-libs/libgpg-error-1.38
-	>=dev-libs/libksba-1.4.0
+	>=dev-libs/libassuan-3.0.0-r1:=
+	>=dev-libs/libgcrypt-1.11.0:=
+	>=dev-libs/libgpg-error-1.56
+	>=dev-libs/libksba-1.6.3
 	>=dev-libs/npth-1.2
-	sys-libs/zlib
+	virtual/zlib:=
 	bzip2? ( app-arch/bzip2 )
 	ldap? ( net-nds/openldap:= )
-	readline? ( sys-libs/readline:= )
+	readline? ( sys-libs/readline:0= )
 	smartcard? ( usb? ( virtual/libusb:1 ) )
-	ssl? ( >=net-libs/gnutls-3.0:= )
-	tofu? ( >=dev-db/sqlite-3.7 )
+	tofu? ( >=dev-db/sqlite-3.27 )
+	tpm? ( >=app-crypt/tpm2-tss-2.4.0:= )
+	ssl? ( >=net-libs/gnutls-3.2:0= )
 "
 RDEPEND="
 	${DEPEND}
@@ -51,6 +52,9 @@ RDEPEND="
 "
 PDEPEND="
 	app-crypt/pinentry
+	alternatives? (
+		app-alternatives/gpg[-freepg(-)]
+	)
 "
 BDEPEND="
 	virtual/pkgconfig
@@ -66,11 +70,23 @@ DOCS=(
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-2.1.20-gpgscm-Use-shorter-socket-path-lengts-to-improve-tes.patch
-	"${FILESDIR}"/${PN}-2.2.45-fix-status-output-LISTTRUSTED.patch
+	"${FILESDIR}"/0002-Fix-stub-functions-to-avoid-LTO-linking-bugs-followup.patch
 )
 
 src_prepare() {
 	default
+
+	GNUPG_SYSTEMD_UNITS=(
+		dirmngr.service
+		dirmngr.socket
+		gpg-agent-browser.socket
+		gpg-agent-extra.socket
+		gpg-agent.service
+		gpg-agent.socket
+		gpg-agent-ssh.socket
+	)
+
+	cp "${GNUPG_SYSTEMD_UNITS[@]/#/${FILESDIR}/}" "${T}" || die
 
 	# Inject SSH_AUTH_SOCK into user's sessions after enabling gpg-agent-ssh.socket in systemctl --user mode,
 	# idea borrowed from libdbus, see
@@ -79,14 +95,18 @@ src_prepare() {
 	# This cannot be upstreamed, as it requires determining the exact prefix of 'systemctl',
 	# which in turn requires discovery in Autoconf, something that upstream deeply resents.
 	sed -e "/DirectoryMode=/a ExecStartPost=-${EPREFIX}/bin/systemctl --user set-environment SSH_AUTH_SOCK=%t/gnupg/S.gpg-agent.ssh" \
-		-i doc/examples/systemd-user/gpg-agent-ssh.socket || die
+		-i "${T}"/gpg-agent-ssh.socket || die
+
+	# Since 2.5.3, --supervised is called --deprecated-supervised.  See
+	# https://dev.gnupg.org/rGa019a0fcd8dfb9d1eae5bc991fdd54b7cf55641e
+	sed -i "s/--supervised/--deprecated-supervised/g" "${T}"/*.service || die
 }
 
 my_src_configure() {
-	# Upstream don't support LTO, bug #854222.
-	filter-lto
-
 	local myconf=(
+		# --enable-selinux controls ENABLE_SELINUX_HACKS which
+		# prohibits import of secret keys, so doesn't seem desirable
+		# to have that forced on with USE=selinux.
 		$(use_enable bzip2)
 		$(use_enable nls)
 		$(use_enable smartcard scdaemon)
@@ -94,6 +114,9 @@ my_src_configure() {
 		$(use_enable test all-tests)
 		$(use_enable test tests)
 		$(use_enable tofu)
+		$(use_enable tofu keyboxd)
+		$(use_enable tofu sqlite)
+		$(usex tpm '--with-tss=intel' '--disable-tpm2d')
 		$(use smartcard && use_enable usb ccid-driver || echo '--disable-ccid-driver')
 		$(use_enable wks-server wks-tools)
 		$(use_with ldap)
@@ -110,16 +133,11 @@ my_src_configure() {
 		--with-mailprog=/usr/libexec/sendmail
 
 		--disable-ntbtls
-		--enable-gpg
 		--enable-gpgsm
 		--enable-large-secmem
 
 		CC_FOR_BUILD="$(tc-getBUILD_CC)"
-		GPG_ERROR_CONFIG="${ESYSROOT}/usr/bin/${CHOST}-gpg-error-config"
-		KSBA_CONFIG="${ESYSROOT}/usr/bin/ksba-config"
-		LIBASSUAN_CONFIG="${ESYSROOT}/usr/bin/libassuan-config"
-		LIBGCRYPT_CONFIG="${ESYSROOT}/usr/bin/${CHOST}-libgcrypt-config"
-		NPTH_CONFIG="${ESYSROOT}/usr/bin/npth-config"
+		GPGRT_CONFIG="${ESYSROOT}/usr/bin/${CHOST}-gpgrt-config"
 
 		$("${S}/configure" --help | grep -o -- '--without-.*-prefix')
 	)
@@ -127,6 +145,13 @@ my_src_configure() {
 	if use prefix && use usb; then
 		# bug #649598
 		append-cppflags -I"${ESYSROOT}/usr/include/libusb-1.0"
+	fi
+
+	if [[ ${CHOST} == *-solaris* ]] ; then
+		# these somehow are treated as fatal, but Solaris has different
+		# types for getpeername with socket_t
+		append-flags -Wno-incompatible-pointer-types
+		append-flags -Wno-unused-label
 	fi
 
 	# bug #663142
@@ -147,7 +172,7 @@ my_src_compile() {
 }
 
 my_src_test() {
-	export TESTFLAGS="--parallel=$(makeopts_jobs)"
+	export TESTFLAGS="--parallel=$(get_makeopts_jobs)"
 
 	default
 }
@@ -155,17 +180,20 @@ my_src_test() {
 my_src_install() {
 	emake DESTDIR="${D}" install
 
-	use tools && dobin \
-		tools/{gpg-zip,gpgconf,gpgsplit,gpg-check-pattern} \
-		tools/make-dns-cert
+	use tools && dobin tools/{gpgconf,gpgsplit,gpg-check-pattern} tools/make-dns-cert
 
-	dosym gpg /usr/bin/gpg2
-	dosym gpgv /usr/bin/gpgv2
-	echo ".so man1/gpg.1" > "${ED}"/usr/share/man/man1/gpg2.1 || die
-	echo ".so man1/gpgv.1" > "${ED}"/usr/share/man/man1/gpgv2.1 || die
-
-	dodir /etc/env.d
-	echo "CONFIG_PROTECT=/usr/share/gnupg/qualified.txt" >> "${ED}"/etc/env.d/30gnupg || die
+	if use alternatives; then
+		# rename for app-alternatives/gpg
+		mv "${ED}"/usr/bin/gpg{,-reference} || die
+		mv "${ED}"/usr/bin/gpgv{,-reference} || die
+		mv "${ED}"/usr/share/man/man1/gpg{,-reference}.1 || die
+		mv "${ED}"/usr/share/man/man1/gpgv{,-reference}.1 || die
+	else
+		dosym gpg /usr/bin/gpg2
+		dosym gpgv /usr/bin/gpgv2
+		echo ".so man1/gpg.1" > "${ED}"/usr/share/man/man1/gpg2.1 || die
+		echo ".so man1/gpgv.1" > "${ED}"/usr/share/man/man1/gpgv2.1 || die
+	fi
 
 	use doc && dodoc doc/gnupg.html/*
 }
@@ -174,8 +202,20 @@ my_src_install_all() {
 	einstalldocs
 
 	use tools && dobin tools/{convert-from-106,mail-signed-keys,lspgpot}
-
 	use doc && dodoc doc/*.png
 
-	systemd_douserunit doc/examples/systemd-user/*.{service,socket}
+	# Dropped upstream in https://git.gnupg.org/cgi-bin/gitweb.cgi?p=gnupg.git;a=commitdiff;h=eae28f1bd4a5632e8f8e85b7248d1c4d4a10a5ed.
+	dodoc "${FILESDIR}"/README-systemd
+	systemd_douserunit "${GNUPG_SYSTEMD_UNITS[@]/#/${T}/}"
+}
+
+pkg_postinst() {
+	# If /usr/bin/gpg and /usr/bin/gpgv do not exist, provide them.
+	if [[ ! -e ${EROOT}/usr/bin/gpg ]]; then
+		ln -sf -- gpg-reference "${EROOT}"/usr/bin/gpg || die
+	fi
+
+	if [[ ! -e ${EROOT}/usr/bin/gpgv ]]; then
+		ln -sf -- gpgv-reference "${EROOT}"/usr/bin/gpgv || die
+	fi
 }
