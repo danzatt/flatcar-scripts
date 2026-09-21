@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 LLVM_COMPAT=( 20 )
-PYTHON_COMPAT=( python3_{11..14} )
+PYTHON_COMPAT=( python3_{12..14} )
 
 RUST_PATCH_VER=${PVR}
 
@@ -18,7 +18,7 @@ else
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 fi
 
-inherit check-reqs estack flag-o-matic llvm-r1 multiprocessing optfeature \
+inherit check-reqs estack flag-o-matic llvm-r2 multiprocessing optfeature \
 	multilib multilib-build python-any-r1 rust rust-toolchain toolchain-funcs verify-sig
 
 if [[ ${PV} = *9999* ]]; then
@@ -42,7 +42,7 @@ else
 		verify-sig? ( https://static.rust-lang.org/dist/${MY_P}-src.tar.xz.asc )
 	"
 	S="${WORKDIR}/${MY_P}-src"
-	KEYWORDS="amd64 arm arm64 ~loong ~mips ~ppc ppc64 ~riscv ~sparc ~x86"
+	KEYWORDS="amd64 arm arm64 ~loong ~mips ppc ppc64 ~riscv ~sparc x86"
 fi
 
 DESCRIPTION="Systems programming language originally developed by Mozilla"
@@ -55,8 +55,8 @@ ALL_LLVM_TARGETS=( AArch64 AMDGPU ARC ARM AVR BPF CSKY DirectX Hexagon Lanai
 ALL_LLVM_TARGETS=( "${ALL_LLVM_TARGETS[@]/#/llvm_targets_}" )
 LLVM_TARGET_USEDEPS=${ALL_LLVM_TARGETS[@]/%/(-)?}
 
-# https://github.com/rust-lang/llvm-project/blob/rustc-1.84.0/llvm/CMakeLists.txt
-_ALL_RUST_EXPERIMENTAL_TARGETS=( ARC CSKY DirectX M68k SPIRV Xtensa )
+# https://github.com/rust-lang/llvm-project/blob/rustc-1.87.0/llvm/CMakeLists.txt
+_ALL_RUST_EXPERIMENTAL_TARGETS=( ARC CSKY DirectX M68k Xtensa )
 declare -A ALL_RUST_EXPERIMENTAL_TARGETS
 for _x in "${_ALL_RUST_EXPERIMENTAL_TARGETS[@]}"; do
 	ALL_RUST_EXPERIMENTAL_TARGETS["llvm_targets_${_x}"]=0
@@ -108,7 +108,7 @@ BDEPEND="${PYTHON_DEPS}
 DEPEND="
 	>=app-arch/xz-utils-5.2
 	net-misc/curl:=[http2,ssl]
-	sys-libs/zlib:=
+	virtual/zlib:=
 	dev-libs/openssl:0=
 	system-llvm? (
 		${LLVM_DEPEND[*]}
@@ -239,7 +239,7 @@ pkg_setup() {
 	rust_pkg_setup
 
 	if use system-llvm; then
-		llvm-r1_pkg_setup
+		llvm-r2_pkg_setup
 
 		local llvm_config="$(get_llvm_prefix)/bin/llvm-config"
 		export LLVM_LINK_SHARED=1
