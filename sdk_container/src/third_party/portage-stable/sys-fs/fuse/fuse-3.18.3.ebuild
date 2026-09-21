@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{10..13} )
-inherit flag-o-matic meson-multilib udev python-any-r1
+PYTHON_COMPAT=( python3_{12..15} )
+inherit flag-o-matic meson-multilib toolchain-funcs udev python-any-r1
 
 DESCRIPTION="An interface for filesystems implemented in userspace"
 HOMEPAGE="https://github.com/libfuse/libfuse"
@@ -12,27 +12,28 @@ SRC_URI="https://github.com/libfuse/libfuse/releases/download/${P}/${P}.tar.gz"
 
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="3/4"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
-IUSE="+suid test"
-RESTRICT="test"
-PROPERTIES="test_privileged"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+IUSE="io-uring +suid systemtap test"
+RESTRICT="!test? ( test )"
 
+DEPEND="
+	io-uring? (
+		sys-libs/liburing:=[${MULTILIB_USEDEP}]
+		sys-process/numactl
+	)
+"
+RDEPEND="
+	${DEPEND}
+	>=sys-fs/fuse-common-3.3.0-r1
+"
 BDEPEND="
 	virtual/pkgconfig
 	test? (
 		${PYTHON_DEPS}
-		$(python_gen_any_dep 'dev-python/pytest[${PYTHON_USEDEP}]')
-		$(python_gen_any_dep 'dev-python/looseversion[${PYTHON_USEDEP}]')
 	)
 "
-RDEPEND=">=sys-fs/fuse-common-3.3.0-r1"
 
 DOCS=( AUTHORS ChangeLog.rst README.md doc/README.NFS doc/kernel.txt )
-
-python_check_deps() {
-	python_has_version "dev-python/pytest[${PYTHON_USEDEP}]" &&
-	python_has_version "dev-python/looseversion[${PYTHON_USEDEP}]"
-}
 
 pkg_setup() {
 	use test && python-any-r1_pkg_setup
@@ -40,11 +41,13 @@ pkg_setup() {
 
 multilib_src_configure() {
 	# bug #853058
-	filter-lto
+	tc-is-clang && filter-lto
 
 	local emesonargs=(
 		$(meson_use test examples)
 		$(meson_use test tests)
+		$(meson_use systemtap enable-usdt)
+		$(meson_use io-uring enable-io-uring)
 		-Duseroot=false
 		-Dinitscriptdir=
 		-Dudevrulesdir="${EPREFIX}$(get_udevdir)/rules.d"
@@ -53,17 +56,14 @@ multilib_src_configure() {
 }
 
 src_test() {
-	# For tests to pass:
-	# sandbox must be disabled.
-	# Write access to /dev/cuse* and /dev/fuse is required.
-	# root must be a member of the portage group; CAP_DAC_OVERRIDE is dropped.
-	# TMPDIR must be short for unix socket paths.
+	# Need short unix socket paths
 	local -x TMPDIR=/tmp
-	multilib-minimal_src_test
-}
+	# mount/mountpoint-validation fails
+	local -x SANDBOX_ON=0
+	# Don't try to use systemd-run
+	local -x FUSE_TESTS_UNDER_SCOPE=1
 
-multilib_src_test() {
-	epytest
+	multilib-minimal_src_test
 }
 
 multilib_src_install_all() {
