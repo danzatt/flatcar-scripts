@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -9,11 +9,11 @@ EAPI=8
 #
 # Also recommend subscribing to the coreutils and bug-coreutils MLs.
 
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..14} )
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/coreutils.asc
-inherit flag-o-matic python-any-r1 toolchain-funcs verify-sig
+inherit branding flag-o-matic python-any-r1 toolchain-funcs verify-sig
 
-MY_PATCH="${PN}-9.5-patches"
+MY_PATCH="${PN}-9.12-patches"
 DESCRIPTION="Standard GNU utilities (chmod, cp, dd, ls, sort, tr, head, wc, who,...)"
 HOMEPAGE="https://www.gnu.org/software/coreutils/"
 
@@ -23,7 +23,7 @@ if [[ ${PV} == 9999 ]] ; then
 elif [[ ${PV} == *_p* ]] ; then
 	# Note: could put this in devspace, but if it's gone, we don't want
 	# it in tree anyway. It's just for testing.
-	MY_SNAPSHOT="$(ver_cut 1-2).185-541b02"
+	MY_SNAPSHOT="$(ver_cut 1-2).274-7f973"
 	SRC_URI="https://www.pixelbeat.org/cu/coreutils-${MY_SNAPSHOT}.tar.xz -> ${P}.tar.xz"
 	SRC_URI+=" verify-sig? ( https://www.pixelbeat.org/cu/coreutils-${MY_SNAPSHOT}.tar.xz.sig -> ${P}.tar.xz.sig )"
 	S="${WORKDIR}"/${PN}-${MY_SNAPSHOT}
@@ -33,14 +33,14 @@ else
 		verify-sig? ( mirror://gnu/${PN}/${P}.tar.xz.sig )
 	"
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~x86-linux"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 fi
 
-SRC_URI+=" !vanilla? ( https://dev.gentoo.org/~sam/distfiles/${CATEGORY}/${PN}/${MY_PATCH}.tar.xz )"
+SRC_URI+=" !vanilla? ( https://distfiles.gentoo.org/pub/dev/sam@gentoo.org/${CATEGORY}/${PN}/${MY_PATCH}.tar.xz )"
 
 LICENSE="GPL-3+"
 SLOT="0"
-IUSE="acl caps gmp hostname kill multicall nls +openssl selinux +split-usr static test vanilla xattr"
+IUSE="acl caps gmp hostname kill multicall nls +openssl selinux +split-usr static test test-full vanilla xattr"
 RESTRICT="!test? ( test )"
 
 LIB_DEPEND="
@@ -62,6 +62,8 @@ DEPEND="
 BDEPEND="
 	app-arch/xz-utils
 	dev-lang/perl
+	sys-apps/help2man
+	sys-apps/texinfo
 	test? (
 		dev-debug/strace
 		dev-lang/perl
@@ -76,20 +78,19 @@ RDEPEND+="
 		!sys-apps/util-linux[kill]
 		!sys-process/procps[kill]
 	)
-	!<sys-apps/util-linux-2.13
-	!<sys-apps/sandbox-2.10-r4
-	!sys-apps/stat
-	!net-mail/base64
-	!sys-apps/mktemp
 	!<app-forensics/tct-1.18-r1
 	!<net-fs/netatalk-2.0.3-r4
+	!net-mail/base64
+	!sys-apps/mktemp
+	!<sys-apps/sandbox-2.10-r4
+	!<sys-apps/shadow-4.19.0_rc1
+	!sys-apps/stat
+	!<sys-apps/util-linux-2.13
 "
 
 QA_CONFIG_IMPL_DECL_SKIP=(
 	# gnulib FPs (bug #898370)
 	unreachable MIN alignof static_assert
-	# ... and on musl
-	_exit fpurge statvfs64 re_set_syntax re_compile_pattern re_search re_match
 )
 
 pkg_setup() {
@@ -105,7 +106,9 @@ src_unpack() {
 		cd "${S}" || die
 		./bootstrap || die
 
-		sed -i -e "s:submodule-checks ?= no-submodule-changes public-submodule-commit:submodule-checks ?= no-submodule-changes:" gnulib/top/maint.mk || die
+		sed -i \
+			-e "s:submodule-checks ?= no-submodule-changes public-submodule-commit:submodule-checks ?= no-submodule-changes:" \
+			gnulib/top/maint.mk || die
 	elif use verify-sig ; then
 		# Needed for downloaded patch (which is unsigned, which is fine)
 		verify-sig_verify_detached "${DISTDIR}"/${P}.tar.xz{,.sig}
@@ -117,14 +120,12 @@ src_unpack() {
 src_prepare() {
 	# TODO: past 2025, we may need to add our own hack for bug #907474.
 	local PATCHES=(
+		"${FILESDIR}"/${PN}-9.5-skip-readutmp-test.patch
 		# Upstream patches
 	)
 
 	if ! use vanilla && [[ -d "${WORKDIR}"/${MY_PATCH} ]] ; then
-		PATCHES+=(
-			"${WORKDIR}"/${MY_PATCH}
-			"${FILESDIR}"/${PN}-9.5-skip-readutmp-test.patch
-		)
+		PATCHES+=( "${WORKDIR}"/${MY_PATCH} )
 	fi
 
 	default
@@ -146,18 +147,23 @@ src_prepare() {
 }
 
 src_configure() {
+	# Running Valgrind in an ebuild is too unreliable. Skip such tests.
+	cat <<-EOF >> init.cfg || die
+	require_valgrind_()
+	{
+		skip_ "requires a working valgrind"
+	}
+	EOF
+
 	# TODO: in future (>9.4?), we may want to wire up USE=systemd:
 	# still experimental at the moment, but:
 	# https://git.savannah.gnu.org/cgit/coreutils.git/commit/?id=85edb4afbd119fb69a0d53e1beb71f46c9525dd0
 	local myconf=(
-		--with-packager="Gentoo"
 		--with-packager-version="${PVR} (p${PATCH_VER:-0})"
-		--with-packager-bug-reports="https://bugs.gentoo.org/"
 		# kill/uptime - procps
-		# groups/su   - shadow
 		# hostname    - net-tools
 		--enable-install-program="arch,$(usev hostname),$(usev kill)"
-		--enable-no-install-program="groups,$(usev !hostname),$(usev !kill),su,uptime"
+		--enable-no-install-program="$(usev !hostname),$(usev !kill),su,uptime"
 		$(usev !caps --disable-libcap)
 		$(use_enable nls)
 		$(use_enable acl)
@@ -165,11 +171,17 @@ src_configure() {
 		$(use_enable xattr)
 		$(use_with gmp libgmp)
 		$(use_with openssl)
+		$(use_with selinux)
 	)
 
 	if use gmp ; then
 		myconf+=( --with-libgmp-prefix="${ESYSROOT}"/usr )
 	fi
+
+	# https://savannah.gnu.org/support/?111394
+	# This can be removed when we patch dev-build/autoconf, though
+	# packages w/o eautoreconf will still need it.
+	! tc-has-64bit-time_t && [[ ${enable_year2038} == "no" ]] && myconf+=( --disable-year2038 )
 
 	if tc-is-cross-compiler && [[ ${CHOST} == *linux* ]] ; then
 		# bug #311569
@@ -181,15 +193,13 @@ src_configure() {
 	# bug #409919
 	export gl_cv_func_mknod_works=yes
 
+	# https://sourceware.org/PR20381
+	has_version "=sys-libs/glibc-2.44*" && export gl_cv_func_re_compile_pattern_working=no
+
 	if use static ; then
 		append-ldflags -static
 		# bug #321821
 		sed -i '/elf_sys=yes/s:yes:no:' configure || die
-	fi
-
-	if ! use selinux ; then
-		# bug #301782
-		export ac_cv_{header_selinux_{context,flash,selinux}_h,search_setfilecon}=no
 	fi
 
 	econf "${myconf[@]}"
@@ -221,35 +231,31 @@ src_test() {
 
 	addwrite /dev/full
 
-	#local -x RUN_EXPENSIVE_TESTS="yes"
+	local -x RUN_{VERY_,}EXPENSIVE_TESTS=$(usex test-full yes no)
 	#local -x COREUTILS_GROUPS="portage wheel"
 	local -x PATH="${T}/mount-wrappers:${PATH}"
 	local -x gl_public_submodule_commit=
 
-	local xfail_tests=(
-		# bug #675802
-		tests/env/env-S
-		tests/env/env-S.pl
+	local xfail_tests=()
 
-		# bug #413621 and bug #548250
-		tests/du/long-from-unreadable.sh
-		tests/ls/removed-directory
-		tests/ls/removed-directory.sh
-		tests/ls/stat-free-symlinks
-		tests/ls/stat-free-symlinks.sh
-		tests/rm/deep-2
-		tests/rm/deep-2.sh
+	if [[ -n ${SANDBOX_ACTIVE} ]]; then
+		xfail_tests+=(
+			# bug #629660
+			# Commented out again in 9.6 as it XPASSes on linux-6.12.10
+			# with sandbox-2.43 on tmpfs. Let's see if it lasts..
+			#tests/dd/no-allocate.sh
 
-		# We have a patch which fixes this (bug #259876)
-		#tests/touch/not-owner
-		#tests/touch/not-owner.sh
-	)
+			# bug #675802
+			tests/env/env-S
+			tests/env/env-S.pl
 
-	# This test is flaky (bug #629660, bug #935367).
-	cat > tests/dd/no-allocate.sh <<-EOF || die
-	#!/bin/sh
-	exit 77;
-	EOF
+			# We have a patch which fixes this (bug #259876)
+			#tests/touch/not-owner
+			#tests/touch/not-owner.sh
+		)
+	fi
+
+	! tc-has-64bit-time_t && [[ ${enable_year2038} == "no" ]] && xfail_tests+=( test-year2038 )
 
 	# This test is flaky (bug #910640).
 	cat > tests/tty/tty-eof.pl <<-EOF || die
