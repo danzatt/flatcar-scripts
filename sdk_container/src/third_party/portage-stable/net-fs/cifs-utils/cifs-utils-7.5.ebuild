@@ -1,9 +1,9 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 
 inherit autotools bash-completion-r1 flag-o-matic linux-info pam python-single-r1
 
@@ -13,7 +13,7 @@ SRC_URI="https://ftp.samba.org/pub/linux-cifs/${PN}/${P}.tar.bz2"
 
 LICENSE="GPL-3"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~x86-linux"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ~ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="+acl +ads +caps creds pam +python systemd"
 
 RDEPEND="
@@ -44,7 +44,6 @@ DOCS="doc/linux-cifs-client-guide.odt"
 
 PATCHES=(
 	"${FILESDIR}/${PN}-7.3-no-clobber-fortify-source.patch"
-	"${FILESDIR}/${PN}-7.0-musl.patch"
 )
 
 pkg_setup() {
