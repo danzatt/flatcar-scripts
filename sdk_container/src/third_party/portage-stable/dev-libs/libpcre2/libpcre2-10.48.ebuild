@@ -1,28 +1,27 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/philiphazel.asc
-inherit libtool multilib multilib-minimal toolchain-funcs verify-sig
+# Always bump this package with virtual/libpcre2-internals.
+
+# https://pcre2project.github.io/pcre2/project/security/
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/nicholaswilson.asc
+inherit dot-a libtool multilib multilib-minimal toolchain-funcs verify-sig
 
 MY_P="pcre2-${PV/_rc/-RC}"
-
 DESCRIPTION="Perl-compatible regular expression library"
 HOMEPAGE="https://pcre2project.github.io/pcre2/ https://www.pcre.org/"
 SRC_URI="
 	https://github.com/PCRE2Project/pcre2/releases/download/${MY_P}/${MY_P}.tar.bz2
-	https://ftp.pcre.org/pub/pcre/${MY_P}.tar.bz2
 	verify-sig? ( https://github.com/PCRE2Project/pcre2/releases/download/${MY_P}/${MY_P}.tar.bz2.sig )
 "
-SRC_URI+=" https://dev.gentoo.org/~sam/distfiles/${CATEGORY}/${PN}/${P}-32bit-tests.patch.xz"
-
-S="${WORKDIR}/${MY_P}"
+S="${WORKDIR}"/${MY_P}
 
 LICENSE="BSD"
 SLOT="0/3" # libpcre2-posix.so version
 if [[ ${PV} != *_rc* ]] ; then
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 IUSE="bzip2 +jit libedit +pcre16 +pcre32 +readline static-libs unicode valgrind zlib"
 REQUIRED_USE="?? ( libedit readline )"
@@ -31,7 +30,7 @@ RDEPEND="
 	bzip2? ( app-arch/bzip2 )
 	libedit? ( dev-libs/libedit )
 	readline? ( sys-libs/readline:= )
-	zlib? ( sys-libs/zlib )
+	zlib? ( virtual/zlib:= )
 "
 DEPEND="
 	${RDEPEND}
@@ -39,38 +38,29 @@ DEPEND="
 "
 BDEPEND="
 	virtual/pkgconfig
-	verify-sig? ( sec-keys/openpgp-keys-philiphazel )
+	verify-sig? ( >=sec-keys/openpgp-keys-nicholaswilson-20250910 )
 "
 
 MULTILIB_CHOST_TOOLS=(
 	/usr/bin/pcre2-config
 )
 
-PATCHES=(
-	"${FILESDIR}"/${PN}-10.10-000-Fix-multilib.patch
-	"${WORKDIR}"/${P}-32bit-tests.patch
+QA_CONFIG_IMPL_DECL_SKIP=(
+	# Only exists in MS Visual C++ (bug #954363)
+	__assume
 )
-
-src_unpack() {
-	if use verify-sig ; then
-		# Needed for downloaded patch (which is unsigned, which is fine)
-		verify-sig_verify_detached "${DISTDIR}"/${MY_P}.tar.bz2{,.sig}
-	fi
-
-	default
-}
 
 src_prepare() {
 	default
-
 	elibtoolize
 }
 
-multilib_src_configure() {
-	# Workaround for bug #934977 (libtool-2.5.0), drop when dist tarball
-	# uses newer libtool with the fix.
-	export ac_cv_prog_ac_ct_FILECMD='file' FILECMD='file'
+src_configure() {
+	use static-libs && lto-guarantee-fat
+	multilib-minimal_src_configure
+}
 
+multilib_src_configure() {
 	local myeconfargs=(
 		--enable-pcre2-8
 		--enable-shared
@@ -114,4 +104,5 @@ multilib_src_install() {
 
 multilib_src_install_all() {
 	find "${ED}" -type f -name "*.la" -delete || die
+	strip-lto-bytecode
 }
