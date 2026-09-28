@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 DISTUTILS_USE_PEP517=standalone
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{12..15} )
 inherit elisp-common distutils-r1 optfeature
 
 if [[ ${PV} == *9999 ]] ; then
@@ -12,7 +12,7 @@ if [[ ${PV} == *9999 ]] ; then
 		https://github.com/pkgcore/pkgcheck.git"
 	inherit git-r3
 else
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~x64-macos"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~x64-macos"
 	inherit pypi
 fi
 
@@ -29,17 +29,16 @@ if [[ ${PV} == *9999 ]]; then
 		~sys-apps/pkgcore-9999[${PYTHON_USEDEP}]"
 else
 	RDEPEND="
-		>=dev-python/snakeoil-0.10.10[${PYTHON_USEDEP}]
-		>=sys-apps/pkgcore-0.12.25[${PYTHON_USEDEP}]"
+		>=dev-python/snakeoil-0.11.6[${PYTHON_USEDEP}]
+		>=sys-apps/pkgcore-0.12.42[${PYTHON_USEDEP}]"
 fi
 RDEPEND+="
-	>=dev-libs/tree-sitter-bash-0.21.0[python,${PYTHON_USEDEP}]
-	dev-python/chardet[${PYTHON_USEDEP}]
-	dev-python/lazy-object-proxy[${PYTHON_USEDEP}]
+	app-arch/zstd
+	>=dev-libs/tree-sitter-bash-0.25.1[python,${PYTHON_USEDEP}]
+	dev-python/charset-normalizer[${PYTHON_USEDEP}]
 	dev-python/lxml[${PYTHON_USEDEP}]
 	dev-python/pathspec[${PYTHON_USEDEP}]
-	>=dev-python/tree-sitter-0.23.0[${PYTHON_USEDEP}]
-	<dev-python/tree-sitter-0.25.0[${PYTHON_USEDEP}]
+	>=dev-python/tree-sitter-0.25.2[${PYTHON_USEDEP}]
 	emacs? (
 		>=app-editors/emacs-24.1:*
 		app-emacs/ebuild-mode
@@ -49,6 +48,7 @@ RDEPEND+="
 BDEPEND="${RDEPEND}
 	>=dev-python/flit-core-3.8[${PYTHON_USEDEP}]
 	test? (
+		dev-python/pytest[${PYTHON_USEDEP}]
 		dev-python/requests[${PYTHON_USEDEP}]
 		dev-vcs/git
 	)
@@ -56,9 +56,15 @@ BDEPEND="${RDEPEND}
 
 SITEFILE="50${PN}-gentoo.el"
 
+EPYTEST_PLUGINS=( pkgcore )
 distutils_enable_tests pytest
 
-export USE_SYSTEM_TREE_SITTER_BASH=1
+src_prepare() {
+	distutils-r1_src_prepare
+
+	# unpin dependencies
+	sed -i -e 's:~=:>=:' pyproject.toml || die
+}
 
 src_compile() {
 	distutils-r1_src_compile
