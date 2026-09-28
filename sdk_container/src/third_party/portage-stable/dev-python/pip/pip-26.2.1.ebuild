@@ -1,16 +1,17 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 # please bump dev-python/ensurepip-pip along with this package!
 
-DISTUTILS_USE_PEP517=setuptools
-PYTHON_TESTED=( pypy3_11 python3_{11..14} )
+DISTUTILS_USE_PEP517=flit-core
+PYTHON_TESTED=( python3_{12..15} )
 PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" )
 PYTHON_REQ_USE="ssl(+),threads(+)"
 
-inherit distutils-r1 shell-completion
+inherit distutils-r1 pypi shell-completion
+FLIT_CORE_PV=3.12.0
 
 DESCRIPTION="The PyPA recommended tool for installing Python packages"
 HOMEPAGE="
@@ -20,6 +21,9 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://github.com/pypa/pip/archive/${PV}.tar.gz -> ${P}.gh.tar.gz
+	test? (
+		$(pypi_wheel_url flit-core "${FLIT_CORE_PV}")
+	)
 "
 
 LICENSE="MIT"
@@ -35,10 +39,10 @@ RDEPEND="
 	>=dev-python/distlib-0.4.0[${PYTHON_USEDEP}]
 	>=dev-python/distro-1.9.0[${PYTHON_USEDEP}]
 	>=dev-python/msgpack-1.1.1[${PYTHON_USEDEP}]
-	>=dev-python/packaging-25.0[${PYTHON_USEDEP}]
+	>=dev-python/packaging-26.2[${PYTHON_USEDEP}]
 	>=dev-python/platformdirs-4.3.8[${PYTHON_USEDEP}]
 	>=dev-python/pyproject-hooks-1.2.0[${PYTHON_USEDEP}]
-	>=dev-python/requests-2.32.4[${PYTHON_USEDEP}]
+	>=dev-python/requests-2.33.1[${PYTHON_USEDEP}]
 	>=dev-python/rich-14.1.0[${PYTHON_USEDEP}]
 	>=dev-python/resolvelib-1.2.0[${PYTHON_USEDEP}]
 	>=dev-python/setuptools-70.3.0[${PYTHON_USEDEP}]
@@ -51,7 +55,6 @@ BDEPEND="
 	test? (
 		$(python_gen_cond_dep '
 			dev-python/ensurepip-setuptools
-			dev-python/ensurepip-wheel
 			dev-python/freezegun[${PYTHON_USEDEP}]
 			dev-python/pretend[${PYTHON_USEDEP}]
 			dev-python/pytest[${PYTHON_USEDEP}]
@@ -61,7 +64,6 @@ BDEPEND="
 			<dev-python/setuptools-80[${PYTHON_USEDEP}]
 			dev-python/virtualenv[${PYTHON_USEDEP}]
 			dev-python/werkzeug[${PYTHON_USEDEP}]
-			dev-python/wheel[${PYTHON_USEDEP}]
 			test-rust? (
 				dev-python/cryptography[${PYTHON_USEDEP}]
 			)
@@ -72,10 +74,8 @@ BDEPEND="
 
 python_prepare_all() {
 	local PATCHES=(
-		# remove coverage & pytest-subket wheel expectation from test suite
-		"${FILESDIR}/pip-25.2-test-wheels.patch"
-		# prepare to unbundle dependencies
-		"${FILESDIR}/pip-25.0.1-unbundle.patch"
+		# prepare to unbundle dependencies and remove redundant test wheels
+		"${FILESDIR}/pip-26.2.1-unbundle.patch"
 	)
 
 	distutils-r1_python_prepare_all
@@ -86,10 +86,12 @@ python_prepare_all() {
 		-e 's:from pip\._vendor import:import:g' \
 		-e 's:from pip\._vendor\.:from :g' \
 		{} + || die
+	sed -i -e '/_vendor.*\(COPYING\|LICENSE\)/d' pyproject.toml || die
 
 	if use test; then
 		local wheels=(
-			"${BROOT}"/usr/lib/python/ensurepip/{setuptools,wheel}-*.whl
+			"${BROOT}"/usr/lib/python/ensurepip/setuptools-*.whl
+			"${DISTDIR}/$(pypi_wheel_name flit-core "${FLIT_CORE_PV}")"
 		)
 		mkdir tests/data/common_wheels/ || die
 		cp "${wheels[@]}" tests/data/common_wheels/ || die
@@ -135,6 +137,7 @@ python_test() {
 		tests/functional/test_lock.py::test_lock_vcs
 		# broken by system site-packages use
 		tests/functional/test_freeze.py::test_freeze_with_setuptools
+		tests/functional/test_install.py::test_install_subprocess_output_handling
 		tests/functional/test_pip_runner_script.py::test_runner_work_in_environments_with_no_pip
 		tests/functional/test_uninstall.py::test_basic_uninstall_distutils
 		tests/unit/test_base_command.py::test_base_command_global_tempdir_cleanup
@@ -143,8 +146,20 @@ python_test() {
 		# broken by unbundling
 		"tests/functional/test_debug.py::test_debug[vendored library versions:]"
 		tests/functional/test_debug.py::test_debug__library_versions
+		tests/functional/test_freeze.py::test_freeze_multiple_exclude_with_all
+		tests/functional/test_install.py::test_install_package_with_same_name_in_curdir
+		tests/functional/test_pep517.py::test_nested_builds
 		tests/functional/test_python_option.py::test_python_interpreter
+		tests/functional/test_uninstall.py::test_basic_uninstall
 		tests/functional/test_uninstall.py::test_uninstall_non_local_distutils
+		tests/functional/test_install.py::test_install_warns_on_unexpected_post_install_import
+		# TODO
+		tests/functional/test_build_env.py::test_build_env_can_still_access_python_tools_on_system_path
+		tests/functional/test_build_env.py::test_build_env_console_scripts_use_venv_python[subprocess]
+		tests/functional/test_build_env.py::test_build_env_isolation[venv-inprocess]
+		tests/functional/test_build_env.py::test_build_env_isolation[venv-subprocess]
+		tests/functional/test_build_env.py::test_build_env_requirements_check[venv]
+		tests/functional/test_self_update.py::test_self_update_editable
 	)
 	local EPYTEST_IGNORE=(
 		# from upstream options
@@ -152,16 +167,6 @@ python_test() {
 		# requires proxy.py
 		tests/functional/test_proxy.py
 	)
-
-	case ${EPYTHON} in
-		pypy3*)
-			EPYTEST_DESELECT+=(
-				# unexpected tempfiles?
-				tests/functional/test_install_config.py::test_do_not_prompt_for_authentication
-				tests/functional/test_install_config.py::test_prompt_for_authentication
-			)
-			;;
-	esac
 
 	if ! has_version "dev-python/cryptography[${PYTHON_USEDEP}]"; then
 		EPYTEST_DESELECT+=(
