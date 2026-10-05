@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -8,7 +8,7 @@ EAPI=8
 # on new automake (major) releases, as well as the dependency in RDEPEND below too.
 # * Update _WANT_AUTOMAKE and _automake_atom case statement in autotools.eclass.
 
-PYTHON_COMPAT=( python3_{11..14} )
+PYTHON_COMPAT=( python3_{12..14} )
 
 inherit python-any-r1 verify-sig
 
@@ -19,7 +19,7 @@ if [[ ${PV} == 9999 ]] ; then
 	EGIT_REPO_URI="https://git.savannah.gnu.org/r/${PN}.git"
 	inherit git-r3
 else
-	VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/karlberry.asc
+	VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/kamilaszewczyk.asc
 	if [[ $(ver_cut 3) -ge 90 ]] ; then
 		MANGLED_SLOT=$(ver_cut 1).$(($(ver_cut 2) + 1))
 		SRC_URI="
@@ -35,7 +35,7 @@ else
 				mirror://gnu/${PN}/${P}.tar.xz.sig
 			)
 		"
-		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 	fi
 fi
 
@@ -50,7 +50,7 @@ RESTRICT="!test? ( test )"
 
 RDEPEND="
 	>=dev-lang/perl-5.6
-	>=dev-build/automake-wrapper-20250528
+	>=dev-build/automake-wrapper-20260920
 	>=dev-build/autoconf-2.69:*
 	sys-devel/gnuconfig
 "
@@ -65,7 +65,7 @@ BDEPEND="
 		sys-devel/bison
 		sys-devel/flex
 	)
-	verify-sig? ( sec-keys/openpgp-keys-karlberry )
+	verify-sig? ( sec-keys/openpgp-keys-kamilaszewczyk )
 "
 
 pkg_setup() {
@@ -75,10 +75,13 @@ pkg_setup() {
 src_prepare() {
 	default
 
-	export WANT_AUTOCONF=2.5
-	# Don't try wrapping the autotools - this thing runs as it tends
-	# to be a bit esoteric, and the script does `set -e` itself.
-	./bootstrap || die
+	if [[ ${PV} == 9999 ]] ; then
+		export WANT_AUTOCONF=2.5
+		# Don't try wrapping the autotools - this thing runs as it tends
+		# to be a bit esoteric, and the script does `set -e` itself.
+		./bootstrap || die
+	fi
+
 	sed -i -e "/APIVERSION=/s:=.*:=${SLOT}:" configure || die
 
 	# bug #628912
@@ -100,6 +103,10 @@ src_test() {
 
 src_install() {
 	default
+
+	# dissuade Portage from removing our dir file
+	touch "${ED}"/usr/share/${P}/info/.keepinfodir || die
+	docompress -x /usr/share/${P}/info/dir
 
 	rm "${ED}"/usr/share/aclocal/README || die
 	rmdir "${ED}"/usr/share/aclocal || die
