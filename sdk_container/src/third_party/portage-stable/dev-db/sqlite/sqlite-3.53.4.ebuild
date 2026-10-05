@@ -1,9 +1,9 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit autotools flag-o-matic multilib-minimal toolchain-funcs
+inherit flag-o-matic multilib multilib-minimal toolchain-funcs
 
 DESCRIPTION="SQL database engine"
 HOMEPAGE="https://sqlite.org/"
@@ -19,21 +19,22 @@ else
 	#printf -v DOC_PV "%u%02u%02u00" $(ver_rs 1-3 " ")
 
 	SRC_URI="
-		https://sqlite.org/2024/${PN}-src-${SRC_PV}.zip
-		doc? ( https://sqlite.org/2024/${PN}-doc-${DOC_PV}.zip )
+		https://sqlite.org/2026/${PN}-src-${SRC_PV}.zip
+		doc? ( https://sqlite.org/2026/${PN}-doc-${DOC_PV}.zip )
 	"
 	S="${WORKDIR}/${PN}-src-${SRC_PV}"
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 
 LICENSE="public-domain"
 SLOT="3"
-IUSE="debug doc icu +readline secure-delete static-libs tcl test tools"
+IUSE="debug doc icu +readline secure-delete static-libs tcl test test-full tools"
+REQUIRED_USE="test-full? ( test )"
 RESTRICT="!test? ( test )"
 
 RDEPEND="
-	sys-libs/zlib:=[${MULTILIB_USEDEP}]
+	virtual/zlib:=[${MULTILIB_USEDEP}]
 	icu? ( dev-libs/icu:=[${MULTILIB_USEDEP}] )
 	readline? ( sys-libs/readline:=[${MULTILIB_USEDEP}] )
 	tcl? ( dev-lang/tcl:=[${MULTILIB_USEDEP}] )
@@ -43,7 +44,6 @@ DEPEND="
 	${RDEPEND}
 	test? ( >=dev-lang/tcl-8.6:0[${MULTILIB_USEDEP}] )
 "
-BDEPEND=">=dev-lang/tcl-8.6:0"
 if [[ ${PV} == 9999 ]]; then
 	BDEPEND+=" dev-vcs/fossil"
 else
@@ -51,7 +51,7 @@ else
 fi
 
 PATCHES=(
-	"${FILESDIR}"/${PN}-3.45.1-ppc64-ptr.patch
+	"${FILESDIR}"/${PN}-3.53.2-hwtime.h-Don-t-use-rdtsc-on-i486.patch
 )
 
 _fossil_fetch() {
@@ -142,7 +142,6 @@ src_unpack() {
 src_prepare() {
 	default
 
-	eautoreconf
 	multilib_copy_sources
 }
 
@@ -196,7 +195,8 @@ multilib_src_configure() {
 	# https://sqlite.org/compile.html#enable_fts5
 	# https://sqlite.org/fts3.html
 	# https://sqlite.org/fts5.html
-	append-cppflags -DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS3_PARENTHESIS -DSQLITE_ENABLE_FTS4
+	append-cppflags -DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS3_PARENTHESIS
+	options+=( --enable-fts4 )
 	options+=( --enable-fts5 )
 
 	# Support hidden columns.
@@ -205,7 +205,7 @@ multilib_src_configure() {
 	# Support memsys5 memory allocator.
 	# https://sqlite.org/compile.html#enable_memsys5
 	# https://sqlite.org/malloc.html#memsys5
-	append-cppflags -DSQLITE_ENABLE_MEMSYS5
+	options+=( --enable-memsys5 )
 
 	# Support sqlite3_normalized_sql() function.
 	# https://sqlite.org/c3ref/expanded_sql.html
@@ -231,12 +231,12 @@ multilib_src_configure() {
 	# https://sqlite.org/compile.html#enable_geopoly
 	# https://sqlite.org/rtree.html
 	# https://sqlite.org/geopoly.html
-	append-cppflags -DSQLITE_ENABLE_RTREE -DSQLITE_ENABLE_GEOPOLY
+	options+=( --enable-rtree --enable-geopoly )
 
 	# Support Session extension.
 	# https://sqlite.org/compile.html#enable_session
 	# https://sqlite.org/sessionintro.html
-	append-cppflags -DSQLITE_ENABLE_SESSION
+	options+=( --enable-session )
 
 	# Support scan status functions.
 	# https://sqlite.org/compile.html#enable_stmt_scanstatus
@@ -280,8 +280,7 @@ multilib_src_configure() {
 	if use icu; then
 		# Support ICU extension.
 		# https://sqlite.org/compile.html#enable_icu
-		append-cppflags -DSQLITE_ENABLE_ICU
-		sed -e "s/^TLIBS = @LIBS@/& -licui18n -licuuc/" -i Makefile.in || die "sed failed"
+		options+=( --with-icu-config )
 	fi
 
 	options+=(
@@ -320,14 +319,25 @@ multilib_src_configure() {
 		fi
 	fi
 
-	econf "${options[@]}"
+	if [[ ${CHOST} != *-darwin* ]] ; then
+		# set SONAME for the library
+		options+=( --soname=legacy )
+	else
+		# to allow install_name_tool id change
+		append-ldflags -headerpad_max_install_names
+	fi
+
+	# https://sqlite.org/forum/forumpost/4f4d06a9f6683bb9
+	tc-export_build_env BUILD_CC
+
+	CC_FOR_BUILD=${BUILD_CC} econf "${options[@]}"
 }
 
 multilib_src_compile() {
-	emake HAVE_TCL="$(usev tcl 1)" TCLLIBDIR="${EPREFIX}/usr/$(get_libdir)/${P}"
+	emake HAVE_TCL="$(usex tcl 1 0)" TCLLIBDIR="${EPREFIX}/usr/$(get_libdir)/${P}"
 
 	if use tools && multilib_is_native_abi; then
-		emake changeset dbdump dbhash dbtotxt index_usage rbu scrub showdb showjournal showshm showstat4 showwal sqldiff sqlite3_analyzer sqlite3_checker sqlite3_expert sqltclsh
+		emake changeset dbdump dbhash dbtotxt index_usage rbu showdb showjournal showshm showstat4 showwal sqldiff sqlite3_analyzer sqlite3_expert sqltclsh
 	fi
 
 	if [[ ${PV} == 9999 ]] && use doc && multilib_is_native_abi; then
@@ -360,11 +370,25 @@ multilib_src_test() {
 	addpredict "/test.db"
 	addpredict "/ÿ.db"
 
-	emake -Onone HAVE_TCL="$(usex tcl 1 "")" $(usex debug 'fulltest' 'test')
+	emake tclextension
+	if multilib_is_native_abi; then
+		emake -Onone $(usex test-full 'xdevtest' 'test')
+	else
+		emake  srctree-check fuzztest sourcetest $TESTPROGS testrunner
+	fi
 }
 
 multilib_src_install() {
 	emake DESTDIR="${D}" HAVE_TCL="$(usex tcl 1 "")" TCLLIBDIR="${EPREFIX}/usr/$(get_libdir)/${P}" install
+
+	if [[ ${CHOST} == *-darwin* ]] ; then
+		# fix install_name, soname=legacy doesn't work for this (but
+		# breaks the build instead)
+		install_name_tool \
+			-id "${EPREFIX}/usr/$(get_libdir)/libsqlite3$(get_libname 0)" \
+			"${ED}/usr/$(get_libdir)/libsqlite3$(get_libname ${PV})" \
+			|| die "failed to fix install_name"
+	fi
 
 	if use tools && multilib_is_native_abi; then
 		install_tool() {
@@ -381,7 +405,6 @@ multilib_src_install() {
 		install_tool dbtotxt sqlite3-db-to-txt
 		install_tool index_usage sqlite3-index-usage
 		install_tool rbu sqlite3-rbu
-		install_tool scrub sqlite3-scrub
 		install_tool showdb sqlite3-show-db
 		install_tool showjournal sqlite3-show-journal
 		install_tool showshm sqlite3-show-shm
@@ -389,7 +412,6 @@ multilib_src_install() {
 		install_tool showwal sqlite3-show-wal
 		install_tool sqldiff sqlite3-diff
 		install_tool sqlite3_analyzer sqlite3-analyzer
-		install_tool sqlite3_checker sqlite3-checker
 		install_tool sqlite3_expert sqlite3-expert
 		install_tool sqltclsh sqlite3-tclsh
 
