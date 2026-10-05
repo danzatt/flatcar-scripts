@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -17,7 +17,7 @@ HOMEPAGE="
 # GPL-3+ only for emacs/rst.el
 LICENSE="BSD BSD-2 GPL-3+ PSF-2.4 public-domain"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 
 RDEPEND="
 	dev-python/pillow[${PYTHON_USEDEP}]
@@ -26,14 +26,6 @@ RDEPEND="
 BDEPEND="
 	${RDEPEND}
 "
-
-PATCHES=(
-	# r10019 upstream
-	"${FILESDIR}/${P}-pygments-2.19.patch"
-	# this changed back at some point, but upstream didn't hit it
-	# because of https://sourceforge.net/p/docutils/bugs/500/
-	"${FILESDIR}/${P}-pillow.patch"
-)
 
 python_compile_all() {
 	# Generate html docs from reStructured text sources.
@@ -62,21 +54,9 @@ python_install() {
 	python_doscript tools/buildhtml.py
 }
 
-install_txt_doc() {
-	local doc="${1}"
-	local dir="txt/$(dirname ${doc})"
-	docinto "${dir}"
-	dodoc "${doc}"
-}
-
 python_install_all() {
-	local DOCS=( *.txt )
+	local DOCS=( *.rst )
 	local HTML_DOCS=( docs tools docutils/writers/html4css1/html4css1.css )
 
 	distutils-r1_python_install_all
-
-	local doc
-	while IFS= read -r -d '' doc; do
-		install_txt_doc "${doc}"
-	done < <(find docs tools -name '*.txt' -print0)
 }
