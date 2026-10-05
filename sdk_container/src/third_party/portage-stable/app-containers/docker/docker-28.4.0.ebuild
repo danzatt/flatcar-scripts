@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,7 +6,7 @@ MY_PV=${PV/_/-}
 
 inherit go-module linux-info optfeature systemd toolchain-funcs udev
 
-GIT_COMMIT=01f442b84d6a669c1e335b800d4670997cd5aa93
+GIT_COMMIT=249d679a6baf8a32bb6d72d6ac5cc7ab9c90b4ea
 
 DESCRIPTION="The core functions you need to create Docker images and run Docker containers"
 HOMEPAGE="https://www.docker.com/"
@@ -15,7 +15,7 @@ S="${WORKDIR}/moby-${PV}"
 
 LICENSE="Apache-2.0"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~arm64 ~ppc64 ~riscv ~x86"
+KEYWORDS="amd64 ~arm arm64 ppc64 ~riscv ~x86"
 IUSE="apparmor btrfs +container-init cuda +overlay2 seccomp selinux systemd"
 
 DEPEND="
@@ -35,8 +35,8 @@ RDEPEND="
 	sys-process/procps
 	>=dev-vcs/git-1.7
 	>=app-arch/xz-utils-4.9
-	>=app-containers/containerd-2.0.5[apparmor?,btrfs?,seccomp?]
-	>=app-containers/runc-1.2.5[apparmor?,seccomp?]
+	>=app-containers/containerd-2.1.4[apparmor?,btrfs?,seccomp?]
+	>=app-containers/runc-1.2.6[apparmor?,seccomp?]
 	!app-containers/docker-proxy
 	!<app-containers/docker-cli-${PV}
 	container-init? ( >=sys-process/tini-0.19.0[static] )
@@ -70,6 +70,13 @@ pkg_setup() {
 		~POSIX_MQUEUE
 	"
 	WARNING_POSIX_MQUEUE="CONFIG_POSIX_MQUEUE: is required for bind-mounting /dev/mqueue into containers"
+
+	if kernel_is ge 6 17; then
+		CONFIG_CHECK+="
+			~IP_NF_IPTABLES_LEGACY
+			~NETFILTER_XTABLES_LEGACY
+		"
+	fi
 
 	if kernel_is lt 4 8; then
 		CONFIG_CHECK+="
@@ -232,6 +239,7 @@ pkg_setup() {
 
 src_unpack() {
 	default
+	go-module_src_unpack
 	cd "${S}"
 	[[ -f go.mod ]] || ln -s vendor.mod go.mod || die
 	[[ -f go.sum ]] || ln -s vendor.sum go.sum || die
