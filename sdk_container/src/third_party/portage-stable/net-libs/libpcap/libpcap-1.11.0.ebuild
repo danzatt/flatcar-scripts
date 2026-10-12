@@ -1,11 +1,11 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit autotools multilib-minimal
+inherit autotools edo multilib-minimal multiprocessing
 
-DESCRIPTION="A system-independent library for user-level network packet capture"
+DESCRIPTION="System-independent library for user-level network packet capture"
 HOMEPAGE="https://www.tcpdump.org/ https://github.com/the-tcpdump-group/libpcap"
 
 if [[ ${PV} == *9999* ]] ; then
@@ -18,7 +18,7 @@ else
 	SRC_URI="https://www.tcpdump.org/release/${P}.tar.gz"
 	SRC_URI+=" verify-sig? ( https://www.tcpdump.org/release/${P}.tar.gz.sig )"
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos"
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~x64-macos"
 fi
 
 # The project itself has COPYING with BSD, but the files used for
@@ -42,10 +42,11 @@ BDEPEND="
 	app-alternatives/yacc
 	sys-devel/flex
 	dbus? ( virtual/pkgconfig )
+	test? ( dev-lang/perl )
 "
 
 if [[ ${PV} != *9999* ]] ; then
-	BDEPEND+=" verify-sig? ( >=sec-keys/openpgp-keys-tcpdump-20240901 )"
+	BDEPEND+=" verify-sig? ( >=sec-keys/openpgp-keys-tcpdump-20260908 )"
 fi
 
 src_prepare() {
@@ -62,28 +63,37 @@ multilib_src_configure() {
 	# bug #884275
 	export LEX=flex
 
-	ECONF_SOURCE="${S}" econf \
-		$(use_enable bluetooth) \
-		$(use_enable dbus) \
-		$(use_enable rdma) \
-		$(use_enable remote) \
-		$(use_enable usb) \
-		$(use_enable yydebug) \
-		$(use_with netlink libnl) \
-		--enable-ipv6
+	local myeconfargs=(
+		$(use_enable bluetooth)
+		$(use_enable dbus)
+		$(use_enable rdma)
+		$(use_enable remote)
+		$(use_enable usb)
+		$(use_enable yydebug)
+		$(use_with netlink libnl)
+	)
+
+	ECONF_SOURCE="${S}" econf "${myeconfargs[@]}"
 }
 
 multilib_src_compile() {
 	emake all shared
-	use test && emake testprogs
 }
 
 multilib_src_test() {
-	testprogs/findalldevstest || die
+	if has_version -b "dev-lang/perl[perl_features_ithreads]" ; then
+		# errors out if this is set w/o ithreads
+		local -x TESTRUN_JOBS=$(get_makeopts_jobs)
+	else
+		ewarn "Running tests serially without dev-lang/perl[perl_features_ithreads]"
+	fi
+
+	emake -Onone check
+	edo testprogs/findalldevstest
 }
 
 multilib_src_install_all() {
-	dodoc CREDITS CHANGES VERSION TODO README.* doc/README.*
+	dodoc CREDITS CHANGES VERSION README.* doc/README.*
 
 	# remove static libraries (--disable-static does not work)
 	if ! use static-libs; then
