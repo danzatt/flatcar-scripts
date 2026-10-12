@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,7 +6,7 @@ EAPI=8
 # Bumping notes: https://wiki.gentoo.org/wiki/Project:Toolchain/sys-libs/glibc
 # Please read & adapt the page as necessary if obsolete.
 
-PYTHON_COMPAT=( python3_{10..11} )
+PYTHON_COMPAT=( python3_{11..12} )
 TMPFILES_OPTIONAL=1
 
 inherit python-any-r1 prefix preserve-libs toolchain-funcs flag-o-matic gnuconfig \
@@ -39,7 +39,7 @@ MIN_PAX_UTILS_VER="1.3.3"
 if [[ ${PV} == 9999* ]]; then
 	inherit git-r3
 else
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 	SRC_URI="mirror://gnu/glibc/${P}.tar.xz"
 	SRC_URI+=" https://dev.gentoo.org/~${PATCH_DEV}/distfiles/${P}-patches-${PATCH_VER}.tar.xz"
 fi
@@ -346,7 +346,7 @@ setup_target_flags() {
 					[[ ${t} == "x86_64" ]] && t="x86-64"
 					filter-flags '-march=*'
 					# ugly, ugly, ugly.  ugly.
-					CFLAGS_x86=$(CFLAGS=${CFLAGS_x86} filter-flags '-march=*'; echo "${CFLAGS}")
+					CFLAGS_x86=$(CFLAGS=${CFLAGS_x86}; filter-flags '-march=*'; echo "${CFLAGS}")
 					export CFLAGS_x86="${CFLAGS_x86} -march=${t}"
 					einfo "Auto adding -march=${t} to CFLAGS_x86 #185404 (ABI=${ABI})"
 				fi
@@ -806,7 +806,7 @@ sanity_prechecks() {
 
 	# ABI-specific checks follow here. Hey, we have a lot more specific conditions that
 	# we test for...
-	if ! is_crosscompile ; then
+	if ! is_crosscompile && ! tc-is-cross-compiler ; then
 		if use amd64 && use multilib && [[ ${MERGE_TYPE} != "binary" ]] ; then
 			ebegin "Checking if the system can execute 32-bit binaries"
 			echo 'int main(){return 0;}' > "${T}/check-ia32-emulation.c"
@@ -1320,7 +1320,7 @@ run_locale_gen() {
 	# number of processors saved in the environment of a binary package may
 	# differ strongly from the number of processes available during postinst
 	if [[ ${EMERGE_FROM} != binary ]]; then
-		localegen_args+=( --jobs "$(makeopts_jobs)" )
+		localegen_args+=( --jobs "$(get_makeopts_jobs)" )
 	fi
 
 	printf 'Executing: locale-gen %s\n' "${localegen_args[*]@Q}" >&2
@@ -1538,7 +1538,7 @@ glibc_do_src_install() {
 
 	# Generate all locales if this is a native build as locale generation
 	if use compile-locales && ! is_crosscompile && ! run_locale_gen "${ED}"; then
-		die "locale-gen(1) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
+		die "locale-gen(8) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
 	fi
 }
 
@@ -1662,7 +1662,7 @@ pkg_postinst() {
 
 	if ! is_crosscompile && [[ -z ${ROOT} ]] ; then
 		if ! use compile-locales && ! run_locale_gen "${EROOT}"; then
-			ewarn "locale-gen(1) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
+			ewarn "locale-gen(8) unexpectedly failed during the ${EBUILD_PHASE_FUNC} phase"
 		fi
 	fi
 
