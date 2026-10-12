@@ -1,9 +1,10 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit gnuconfig libtool flag-o-matic multilib-minimal toolchain-funcs
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/gmp.asc
+inherit gnuconfig libtool flag-o-matic multilib-minimal toolchain-funcs verify-sig
 
 MY_PV=${PV/_p*}
 MY_PV=${MY_PV/_/-}
@@ -19,20 +20,24 @@ SRC_URI="
 	https://gmplib.org/download/gmp/${MY_P}.tar.xz
 	mirror://gnu/${PN}/${MY_P}.tar.xz
 	doc? ( https://gmplib.org/${PN}-man-${MANUAL_PV}.pdf )
+	verify-sig? ( https://gmplib.org/download/gmp/${MY_P}.tar.xz.sig )
 "
 S="${WORKDIR}"/${MY_P%a}
 
 LICENSE="|| ( LGPL-3+ GPL-2+ )"
 # The subslot reflects the C & C++ SONAMEs.
 SLOT="0/10.4"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="+asm doc +cpudetection +cxx pic static-libs"
 REQUIRED_USE="cpudetection? ( asm )"
 RESTRICT="!cpudetection? ( bindist )"
 
 BDEPEND="
 	app-arch/xz-utils
+	sys-devel/bison
+	sys-devel/flex
 	sys-devel/m4
+	verify-sig? ( sec-keys/openpgp-keys-gmp )
 "
 
 DOCS=( AUTHORS ChangeLog NEWS README doc/configuration doc/isa_abi_headache )
@@ -43,6 +48,7 @@ MULTILIB_WRAPPED_HEADERS=( /usr/include/gmp.h )
 PATCHES=(
 	"${FILESDIR}"/${PN}-6.1.0-noexecstack-detect.patch
 	"${FILESDIR}"/${PN}-6.2.1-no-zarch.patch
+	"${FILESDIR}"/${PN}-6.3.0-r1-__int128.patch
 )
 
 pkg_pretend() {
@@ -51,6 +57,12 @@ pkg_pretend() {
 		elog "--enable-fat is a no-op on alternative arches."
 		elog "To obtain an optimized build, set USE=-cpudetection, but binpkgs should not then be made."
 	fi
+}
+
+src_unpack() {
+	use verify-sig && verify-sig_verify_detached "${DISTDIR}"/${MY_P}.tar.xz{,.sig}
+
+	default
 }
 
 src_prepare() {
