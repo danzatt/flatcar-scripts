@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -12,8 +12,11 @@ DESCRIPTION="Allows users or groups to run commands as other users"
 HOMEPAGE="https://www.sudo.ws/"
 
 if [[ ${PV} == 9999 ]] ; then
-	inherit autotools mercurial
-	EHG_REPO_URI="https://www.sudo.ws/repos/sudo"
+	EGIT_REPO_URI="
+		https://github.com/sudo-project/sudo
+		https://git.sudo.ws/sudo
+	"
+	inherit autotools git-r3
 else
 	VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/sudo.ws.asc
 	inherit libtool verify-sig
@@ -31,7 +34,7 @@ else
 	"
 
 	if [[ ${PV} != *_beta* && ${PV} != *_rc* ]] ; then
-		KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 	fi
 
 	BDEPEND="verify-sig? ( sec-keys/openpgp-keys-sudo )"
@@ -46,7 +49,7 @@ SLOT="0"
 IUSE="gcrypt ldap nls offensive pam sasl +secure-path selinux +sendmail skey ssl sssd"
 
 DEPEND="
-	sys-libs/zlib:=
+	virtual/zlib:=
 	virtual/libcrypt:=
 	gcrypt? ( dev-libs/libgcrypt:= )
 	ldap? (
@@ -83,6 +86,10 @@ REQUIRED_USE="
 "
 
 MAKEOPTS+=" SAMPLES="
+
+PATCHES=(
+	"${FILESDIR}/CVE-2026-96512.patch"
+)
 
 src_prepare() {
 	default
