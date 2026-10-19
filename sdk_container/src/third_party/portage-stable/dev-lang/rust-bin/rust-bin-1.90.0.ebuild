@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,7 +6,7 @@ EAPI=8
 LLVM_COMPAT=( 20 )
 LLVM_OPTIONAL="yes"
 
-inherit edo llvm-r1 multilib prefix rust-toolchain verify-sig multilib-minimal optfeature
+inherit edo llvm-r2 multilib prefix rust-toolchain verify-sig multilib-minimal optfeature
 
 if [[ ${PV} == *9999* ]]; then
 	# We need to fetch a tarball in src_unpack
@@ -22,12 +22,12 @@ elif [[ ${PV} == *beta* ]]; then
 else
 	# curl -Ls static.rust-lang.org/dist/channel-rust-${PV}.toml | grep "xz_url.*rust-src"
 	SRC_URI="$(rust_all_arch_uris "rust-${PV}")
-		rust-src? ( ${RUST_TOOLCHAIN_BASEURL%/}/2025-06-26/rust-src-${PV}.tar.xz )
+		rust-src? ( ${RUST_TOOLCHAIN_BASEURL%/}/2025-09-18/rust-src-${PV}.tar.xz )
 		ppc64? ( elibc_musl? ( !big-endian? (
 			$(rust_arch_uri powerpc64le-unknown-linux-musl rust-${PV})
 		) ) )
 	"
-	KEYWORDS="amd64 arm arm64 ~loong ~mips ~ppc ppc64 ~riscv ~s390 ~sparc ~x86"
+	KEYWORDS="amd64 arm arm64 ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 GENTOO_BIN_BASEURI="https://github.com/projg2/rust-bootstrap/releases/download/${PVR}" # omit trailing slash
@@ -35,7 +35,7 @@ GENTOO_BIN_BASEURI="https://github.com/projg2/rust-bootstrap/releases/download/$
 DESCRIPTION="Systems programming language from Mozilla"
 HOMEPAGE="https://www.rust-lang.org/"
 
-if [[ ${PV} != *9999* && ${PV} != *beta* ]] ; then
+if [[ ${PV} != *9999* && ${PV} != *beta* ]]; then
 	# Keep this separate to allow easy commenting out if not yet built
 	SRC_URI+=" sparc? ( ${GENTOO_BIN_BASEURI}/rust-${PVR}-sparc64-unknown-linux-gnu.tar.xz ) "
 	SRC_URI+=" mips? (
@@ -206,8 +206,8 @@ rust_native_abi_install() {
 
 	if use prefix; then
 		local interpreter=$(patchelf --print-interpreter "${EPREFIX}"/bin/bash)
-		ebegin "Changing interpreter to ${interpreter} for Gentoo prefix at ${ED}/opt/${SLOT}/bin"
-		find "${ED}/opt/${SLOT}/bin" -type f -print0 | \
+		ebegin "Changing interpreter to ${interpreter} for Gentoo prefix at ${ED}/opt/rust-bin-${SLOT}/bin"
+		find "${ED}/opt/rust-bin-${SLOT}/bin" -type f -print0 | \
 			while IFS=  read -r -d '' filename; do
 				patchelf_for_bin ${filename} ${interpreter} \; || die
 			done
