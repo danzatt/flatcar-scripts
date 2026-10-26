@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 MODULES_OPTIONAL_IUSE=modules
-inherit autotools bash-completion-r1 linux-mod-r1 systemd
+inherit autotools linux-mod-r1 shell-completion systemd
 
 DESCRIPTION="IPset tool for iptables, successor to ippool"
 HOMEPAGE="https://ipset.netfilter.org/ https://git.netfilter.org/ipset/"
@@ -26,7 +26,9 @@ DOCS=( ChangeLog INSTALL README UPGRADE )
 # configurable from outside, e.g. /etc/portage/make.conf
 IP_NF_SET_MAX=${IP_NF_SET_MAX:-256}
 
-PATCHES=( "${FILESDIR}/${PN}-bash-completion.patch")
+PATCHES=(
+	"${FILESDIR}/${PN}-net_namespace.patch"
+)
 
 src_prepare() {
 	default
@@ -104,7 +106,7 @@ src_install() {
 
 	find "${ED}" -name '*.la' -delete || die
 
-	newinitd "${FILESDIR}"/ipset.initd-r7 ${PN}
+	newinitd "${FILESDIR}"/ipset.initd-r8 ${PN}
 	newconfd "${FILESDIR}"/ipset.confd-r1 ${PN}
 	systemd_newunit "${FILESDIR}"/ipset.systemd-r1 ${PN}.service
 	keepdir /var/lib/ipset
