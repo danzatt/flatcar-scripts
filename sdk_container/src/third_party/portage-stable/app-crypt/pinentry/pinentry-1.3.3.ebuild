@@ -1,10 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/gnupg.asc
-inherit autotools qmake-utils verify-sig
+inherit autotools qt-utils verify-sig
 
 DESCRIPTION="Simple passphrase entry dialogs which utilize the Assuan protocol"
 HOMEPAGE="https://gnupg.org/related_software/pinentry/"
@@ -13,8 +13,8 @@ SRC_URI+=" verify-sig? ( mirror://gnupg/${PN}/${P}.tar.bz2.sig )"
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
-IUSE="caps efl emacs gtk keyring ncurses qt6 wayland X"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
+IUSE="caps efl emacs gtk keyring ncurses qt6 selinux wayland X"
 
 DEPEND="
 	>=dev-libs/libassuan-2.1:=
@@ -33,7 +33,11 @@ DEPEND="
 "
 RDEPEND="
 	${DEPEND}
-	gtk? ( app-crypt/gcr:4[gtk] )
+	gtk? (
+		app-crypt/gcr:4[gtk]
+		gnome-base/gnome-keyring
+	)
+	selinux? ( sec-policy/selinux-gpg )
 "
 BDEPEND="
 	sys-devel/gettext
@@ -46,7 +50,6 @@ IDEPEND=">=app-eselect/eselect-pinentry-0.7.4"
 DOCS=( AUTHORS ChangeLog NEWS README THANKS TODO )
 
 PATCHES=(
-	"${FILESDIR}/${PN}-1.0.0-AR.patch"
 	"${FILESDIR}/${PN}-1.3.0-automagic.patch" # bug #819939, bug #837719
 )
 
@@ -82,9 +85,8 @@ src_configure() {
 	)
 
 	if use qt6 ; then
-		export PATH="$(qt6_get_bindir):${PATH}"
-		export QTLIB="$(qt6_get_libdir):${QTLIB}"
-		export MOC="$(qt6_get_libdir)/qt6/libexec/moc"
+		export PATH="${BROOT}$(qt_get_bindir 6):${PATH}"
+		export MOC="$(qt_get_broot_binary 6 moc)"
 
 		myeconfargs+=(
 			$(use_enable wayland kf6-wayland)
