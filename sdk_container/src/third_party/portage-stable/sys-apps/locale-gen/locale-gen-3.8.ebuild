@@ -12,15 +12,15 @@ if [[ ${PV} == 9999 ]] ; then
 else
 	SRC_URI="https://gitweb.gentoo.org/proj/locale-gen.git/snapshot/${P}.tar.bz2"
 
-	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 LICENSE="GPL-2"
 SLOT="0"
 
-# In-place editing became safer in v5.28.
 BDEPEND="
-	>=dev-lang/perl-5.28
+	>=dev-lang/perl-5.36
+	dev-perl/File-Slurper
 "
 RDEPEND="
 	>=dev-lang/perl-5.36
@@ -41,6 +41,21 @@ src_install() {
 	dosbin locale-gen
 	doman *.[0-8]
 	insinto /etc
-	doins locale.gen
+	{
+		cat <<-'EOF' &&
+		# This file defines which locales to incorporate into the glibc locale archive.
+		# See the locale.gen(5) and locale-gen(8) man pages for more details.
+
+		EOF
+		if [[ -e ${EROOT}/usr/share/i18n/SUPPORTED ]]; then
+			# Run the interpreter by name so as not to have to prefixify.
+			perl mkconfig "${EROOT}"
+		else
+			ewarn "Skipping the incorporation of locale.gen examples because the SUPPORTED file is absent"
+		fi
+	} | newins - locale.gen
+	if (( PIPESTATUS[0] || PIPESTATUS[1] )); then
+		die "Failed to generate and/or install locale.gen"
+	fi
 	keepdir /usr/lib/locale
 }
