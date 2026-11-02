@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
@@ -43,7 +43,7 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="GPL-3"
 SLOT="${MY_PV}"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~m68k ~mips ppc ppc64 ~s390 sparc x86"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~m68k ~mips ppc ppc64 ~s390 ~sparc x86"
 IUSE="afs bashlogger examples mem-scramble +net nls plugins +readline"
 
 DEPEND=">=sys-libs/ncurses-5.2-r2:0=
@@ -114,6 +114,7 @@ src_configure() {
 	append-cflags $(test-flags-CC -std=gnu17)
 
 	if tc-is-cross-compiler; then
+		export CC_FOR_BUILD="$(tc-getBUILD_CC)"
 		export CFLAGS_FOR_BUILD="${BUILD_CFLAGS} -std=gnu17"
 	fi
 
