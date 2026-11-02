@@ -47,6 +47,7 @@ BDEPEND="
 "
 
 PATCHES=(
+	"${FILESDIR}"/${PN}-6.17.0-musl.patch # bug #963708
 	"${FILESDIR}"/${PN}-6.10.0-musl-2.patch # bug #926341
 	"${FILESDIR}"/${PN}-6.9.0-mtu.patch # bug #291907
 	"${FILESDIR}"/${PN}-6.8.0-configure-nomagic-nolibbsd.patch # bug #643722 & #911727
@@ -87,6 +88,9 @@ src_prepare() {
 src_configure() {
 	tc-export AR CC PKG_CONFIG
 	lto-guarantee-fat
+
+	tc-export_build_env
+	export CBUILD_CFLAGS=${BUILD_CFLAGS}
 
 	# This sure is ugly. Should probably move into toolchain-funcs at some point.
 	local setns
