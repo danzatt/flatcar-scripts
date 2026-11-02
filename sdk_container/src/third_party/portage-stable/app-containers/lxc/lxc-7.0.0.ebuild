@@ -1,34 +1,42 @@
-# Copyright 2022-2023 Gentoo Authors
+# Copyright 2022-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit bash-completion-r1 linux-info meson optfeature systemd toolchain-funcs verify-sig
+inherit bash-completion-r1 linux-info meson optfeature systemd verify-sig
 
 DESCRIPTION="A userspace interface for the Linux kernel containment features"
 HOMEPAGE="https://linuxcontainers.org/ https://github.com/lxc/lxc"
 SRC_URI="https://linuxcontainers.org/downloads/lxc/${P}.tar.gz
 	verify-sig? ( https://linuxcontainers.org/downloads/lxc/${P}.tar.gz.asc )"
 
-LICENSE="GPL-2 LGPL-2.1 LGPL-3"
-SLOT="0/1.502" # SONAME liblxc.so.1 + ${PV//./} _if_ breaking ABI change while bumping.
+LICENSE="GPL-2 LGPL-2.1 LGPL-3" # LGPL-2.1+ is listed, but it's covered by "LGPL-3"
+SLOT="0/1.700" # SONAME liblxc.so.1 + ${PV//./} _if_ breaking ABI change while bumping.
 KEYWORDS="amd64 ~arm ~arm64 ~ppc64 ~riscv x86"
-IUSE="apparmor +caps examples io-uring lto man pam seccomp selinux ssl systemd test +tools"
+IUSE="apparmor +caps doc examples io-uring landlock man pam seccomp selinux ssl systemd test +tools"
+
+REQUIRED_USE="landlock? ( seccomp )"
 
 RDEPEND="acct-group/lxc
 	acct-user/lxc
 	apparmor? ( sys-libs/libapparmor )
-	caps? ( sys-libs/libcap[static-libs] )
+	caps? ( sys-libs/libcap )
 	io-uring? ( >=sys-libs/liburing-2:= )
 	pam? ( sys-libs/pam )
 	seccomp? ( sys-libs/libseccomp )
 	selinux? ( sys-libs/libselinux )
 	ssl? ( dev-libs/openssl:0= )
-	systemd? ( sys-apps/systemd:= )
-	tools? ( sys-libs/libcap[static-libs] )"
+	systemd? (
+		sys-apps/dbus
+		sys-apps/systemd:=
+	)
+	tools? ( sys-libs/libcap )"
 DEPEND="${RDEPEND}
+	caps? ( sys-libs/libcap[static-libs] )
+	tools? ( sys-libs/libcap[static-libs] )
 	sys-kernel/linux-headers"
 BDEPEND="virtual/pkgconfig
+	doc? ( app-text/doxygen )
 	man? ( app-text/docbook2X )
 	verify-sig? ( sec-keys/openpgp-keys-linuxcontainers )"
 
@@ -65,28 +73,38 @@ ERROR_VETH="CONFIG_VETH: needed for internal (host-to-container) networking"
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/linuxcontainers.asc
 
-DOCS=( AUTHORS CONTRIBUTING MAINTAINERS README.md doc/FAQ.txt )
+DOCS=( AUTHORS MAINTAINERS README.md doc/FAQ.txt )
 
 pkg_setup() {
+	if use landlock ; then
+		WARNING_SECURITY_LANDLOCK="CONFIG_SECURITY_LANDLOCK: needed with landlock"
+	fi
 	linux-info_pkg_setup
 }
 
 src_configure() {
+
+	# -Dtools-multicall=false: will create a single binary called 'lxc' that conflicts with LXD.
 	local emesonargs=(
 		--localstatedir "${EPREFIX}/var"
 
 		-Dcoverity-build=false
+		-Dinstall-state-dirs=false
 		-Doss-fuzz=false
+		-Dspecfile=false
+		-Dtools-multicall=false
 
 		-Dcommands=true
+		-Dinstall-init-files=true
 		-Dmemfd-rexec=true
 		-Dthread-safety=true
 
 		$(meson_use apparmor)
 		$(meson_use caps capabilities)
+		$(meson_use doc api-docs)
 		$(meson_use examples)
 		$(meson_use io-uring io-uring-event-loop)
-		$(meson_use lto b_lto)
+		$(meson_use landlock landlock-monitor)
 		$(meson_use man)
 		$(meson_use pam pam-cgroup)
 		$(meson_use seccomp)
@@ -95,6 +113,9 @@ src_configure() {
 		$(meson_use test tests)
 		$(meson_use tools)
 
+		$(usex systemd -Ddbus=true -Ddbus=false)
+		$(usex systemd -Dinit-script="systemd" -Dinit-script="openrc")
+
 		-Ddata-path=/var/lib/lxc
 		-Ddoc-path=/usr/share/doc/${PF}
 		-Dlog-path=/var/log/lxc
@@ -102,46 +123,35 @@ src_configure() {
 		-Druntime-path=/run
 	)
 
-	if use systemd; then
-		local emesonargs+=( -Dinit-script="systemd" )
-		local emesonargs+=( -Dsd-bus=enabled )
-	else
-		local emesonargs+=( -Dinit-script="sysvinit" )
-		local emesonargs+=( -Dsd-bus=disabled )
-	fi
-
 	use tools && local emesonargs+=( -Dcapabilities=true )
-
-	if $(tc-ld-is-gold) || $(tc-ld-is-lld); then
-		local emesonargs+=( -Db_lto_mode=thin )
-	else
-		local emesonargs+=( -Db_lto_mode=default )
-	fi
 
 	meson_src_configure
 }
 
 src_install() {
+	if use doc ; then
+		local HTML_DOCS=( "${BUILD_DIR}/html/"* )
+	fi
 	meson_src_install
 
 	# The main bash-completion file will collide with lxd, need to relocate and update symlinks.
-	mkdir -p "${ED}"/$(get_bashcompdir) || die "Failed to create bashcompdir."
+	local lxcbashcompdir="${D}/$(get_bashcompdir)"
+	mkdir -p "${lxcbashcompdir}" || die "Failed to create bashcompdir."
+	mv "${lxcbashcompdir}"/_lxc "${lxcbashcompdir}"/lxc-start || die "Failed to move _lxc bash completion file."
 
-	if use tools; then
-		bashcomp_alias lxc-start lxc-{attach,autostart,cgroup,checkpoint,config,console,copy,create,destroy,device,execute,freeze,info,ls,monitor,snapshot,stop,top,unfreeze,unshare,usernsexec,wait}
-	else
-		bashcomp_alias lxc-start lxc-usernsexec
-	fi
-
-	keepdir /var/lib/cache/lxc /var/lib/lib/lxc
+	# Build system will install all bash completion files regardless of our 'tools' use flag.
+	# Though installing them all will add bash completions for commands that don't exist, it's
+	# cleaner than dealing with individual files based on the use flag status.
+	bashcomp_alias lxc-start lxc-{attach,autostart,cgroup,checkpoint,config,console,copy,create,destroy,device,execute,freeze,info,ls,monitor,snapshot,stop,top,unfreeze,unshare,update-config,usernsexec,wait}
 
 	find "${ED}" -name '*.la' -delete -o -name '*.a' -delete || die
 
-	# Replace upstream sysvinit/systemd files.
-	if use systemd; then
+	# Replace upstream systemd files.
+	if use systemd ; then
 		rm -r "${D}$(systemd_get_systemunitdir)" || die "Failed to remove systemd lib dir"
 	else
-		rm "${ED}"/etc/init.d/lxc-{containers,net} || die "Failed to remove sysvinit scripts"
+		# The openrc files aren't installed with correct permissions.
+		fperms 0755 /etc/init.d/lxc-{containers,net}
 	fi
 
 	newinitd "${FILESDIR}/${PN}.initd.9" ${PN}
@@ -163,6 +173,7 @@ pkg_postinst() {
 	elog "Run 'lxc-checkconfig' to see optional kernel features."
 	elog
 
+	optfeature "creating your own LXC containers" app-containers/distrobuilder
 	optfeature "automatic template scripts" app-containers/lxc-templates
 	optfeature "Debian-based distribution container image support" dev-util/debootstrap
 	optfeature "snapshot & restore functionality" sys-process/criu
