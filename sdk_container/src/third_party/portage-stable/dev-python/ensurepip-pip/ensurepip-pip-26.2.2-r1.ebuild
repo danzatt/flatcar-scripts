@@ -1,14 +1,18 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-DISTUTILS_USE_PEP517=setuptools
+DISTUTILS_USE_PEP517=flit-core
 # PYTHON_COMPAT is used only for testing
-PYTHON_COMPAT=( pypy3_11 python3_{11..14} )
+PYTHON_COMPAT=( python3_{12..15} python3_{14,15}t )
 PYTHON_REQ_USE="ssl(+),threads(+)"
 
-inherit distutils-r1
+inherit distutils-r1 pypi
+
+FLIT_CORE_PV=3.12.0
+CERTIFI_PV=3024.7.22
+CERTIFI_P=certifi-system-store-${CERTIFI_PV}
 
 MY_P=${P#ensurepip-}
 DESCRIPTION="Shared pip wheel for ensurepip Python module"
@@ -19,12 +23,17 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://github.com/pypa/pip/archive/${PV}.tar.gz -> ${MY_P}.gh.tar.gz
+	https://github.com/projg2/certifi-system-store/archive/v${CERTIFI_PV}.tar.gz
+		-> ${CERTIFI_P}.gh.tar.gz
+	test? (
+		$(pypi_wheel_url flit-core "${FLIT_CORE_PV}")
+	)
 "
 S=${WORKDIR}/${MY_P}
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="test test-rust"
 RESTRICT="!test? ( test )"
 
@@ -46,14 +55,14 @@ BDEPEND="
 	)
 "
 
-EPYTEST_PLUGINS=( pytest-rerunfailures )
+EPYTEST_PLUGINS=()
+EPYTEST_RERUNS=5
 EPYTEST_XDIST=1
 distutils_enable_tests pytest
 
 declare -A VENDOR_LICENSES=(
 	[cachecontrol]=Apache-2.0
 	[certifi]=MPL-2.0
-	[dependency_groups]=MIT
 	[distlib]=PSF-2
 	[distro]=Apache-2.0
 	[idna]=BSD
@@ -70,20 +79,28 @@ declare -A VENDOR_LICENSES=(
 	[tomli_w]=MIT
 	[truststore]=MIT
 	[urllib3]=MIT
-	[typing_extensions.py]=PSF-2
 )
 LICENSE+=" ${VENDOR_LICENSES[*]}"
 
 python_prepare_all() {
 	local PATCHES=(
-		"${FILESDIR}/pip-23.1-no-coverage.patch"
+		# remove coverage & pytest-subket wheel expectation from test suite
+		# (from dev-python/pip)
+		"${FILESDIR}/pip-26.0-test-wheels.patch"
 	)
 
 	distutils-r1_python_prepare_all
 
+	# Replace bundled certifi with certifi-system-store, which is the next
+	# best thing after unbundling certifi entirely.
+	rm -r src/pip/_vendor/certifi || die
+	mv "${WORKDIR}/${CERTIFI_P}/src/certifi" src/pip/_vendor/ || die
+	sed -i -e "/certifi/s:[0-9][0-9.]*:${CERTIFI_PV}:" src/pip/_vendor/vendor.txt || die
+
 	if use test; then
 		local wheels=(
 			"${BROOT}"/usr/lib/python/ensurepip/{setuptools,wheel}-*.whl
+			"${DISTDIR}/$(pypi_wheel_name flit-core "${FLIT_CORE_PV}")"
 		)
 		mkdir tests/data/common_wheels/ || die
 		cp "${wheels[@]}" tests/data/common_wheels/ || die
@@ -91,7 +108,7 @@ python_prepare_all() {
 
 	# Verify that we've covered licenses for all vendored packages
 	cd src/pip/_vendor || die
-	local packages=( */ [A-Za-z]*.py )
+	local packages=( */ )
 	local pkg missing=()
 	for pkg in "${packages[@]%/}"; do
 		if [[ ! -v "VENDOR_LICENSES[${pkg}]" ]]; then
@@ -134,41 +151,19 @@ python_test() {
 		tests/unit/test_base_command.py::test_base_command_global_tempdir_cleanup
 		tests/unit/test_base_command.py::test_base_command_local_tempdir_cleanup
 		tests/unit/test_base_command.py::test_base_command_provides_tempdir_helpers
+		# require cmake wheel
+		tests/functional/test_build_env.py::test_build_env_can_still_access_python_tools_on_system_path
+		tests/functional/test_build_env.py::test_build_env_isolation[venv-inprocess]
+		tests/functional/test_build_env.py::test_build_env_isolation[venv-subprocess]
+		tests/functional/test_install_config.py::test_build_dependency_install_uses_same_keyring_as_root[legacy-isolation]
 	)
 	local EPYTEST_IGNORE=(
+		# from upstream options
+		src/pip/_vendor
+		tests/tests_cache
 		# requires proxy.py
 		tests/functional/test_proxy.py
 	)
-
-	case ${EPYTHON} in
-		pypy3*)
-			EPYTEST_DESELECT+=(
-				# unexpected tempfiles?
-				tests/functional/test_install_config.py::test_do_not_prompt_for_authentication
-				tests/functional/test_install_config.py::test_prompt_for_authentication
-			)
-			;;
-		python3.14*)
-			EPYTEST_DESELECT+=(
-				# TODO: segfaults
-				tests/unit/test_collector.py::test_get_index_content_directory_append_index
-				# https://github.com/python/cpython/issues/125974
-				tests/unit/test_collector.py::test_ensure_quoted_url
-				tests/unit/test_finder.py::test_finder_priority_file_over_page
-				tests/unit/test_urls.py::test_path_to_url_unix
-				tests/unit/test_collector.py::test_clean_url_path
-				tests/unit/test_collector.py::test_clean_url_path_with_local_path
-				tests/unit/test_req.py::TestRequirementSet::test_download_info_local_editable_dir
-				tests/unit/test_req.py::test_parse_editable_local
-				tests/unit/test_req.py::test_parse_editable_local_extras
-				tests/unit/test_req.py::test_get_url_from_path__archive_file
-				tests/unit/test_req.py::test_get_url_from_path__installable_dir
-				tests/functional/test_lock.py::test_lock_wheel_from_findlinks
-				tests/functional/test_lock.py::test_lock_sdist_from_findlinks
-				tests/functional/test_lock.py::test_lock_local_editable_with_dep
-			)
-			;;
-	esac
 
 	if ! has_version "dev-python/cryptography[${PYTHON_USEDEP}]"; then
 		EPYTEST_DESELECT+=(
@@ -182,8 +177,8 @@ python_test() {
 	local -x PIP_DISABLE_PIP_VERSION_CHECK=1
 	# rerunfailures because test suite breaks if packages are installed
 	# in parallel
-	epytest -m "not network" -o tmp_path_retention_policy=all \
-		--reruns=5 --use-venv
+	epytest -m "not network" -o addopts= -o tmp_path_retention_policy=all \
+		--use-venv
 }
 
 src_install() {
