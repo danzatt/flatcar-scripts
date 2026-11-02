@@ -1,22 +1,26 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit eapi9-ver systemd tmpfiles toolchain-funcs
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/isc.asc
+inherit autotools eapi9-ver systemd tmpfiles toolchain-funcs verify-sig
 
 MY_PV="${PV/_p/-P}"
 MY_PV="${MY_PV/_rc/rc}"
 
 DESCRIPTION="Berkeley Internet Name Domain - Name Server"
 HOMEPAGE="https://www.isc.org/bind/"
-SRC_URI="https://downloads.isc.org/isc/bind9/${PV}/${P}.tar.xz"
+SRC_URI="
+	https://downloads.isc.org/isc/bind9/${PV}/${P}.tar.xz
+	verify-sig? ( https://downloads.isc.org/isc/bind9/${PV}/${P}.tar.xz.asc )
+"
 S="${WORKDIR}/${PN}-${MY_PV}"
 
 LICENSE="MPL-2.0"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux"
-IUSE="dnstap doc doh fixed-rrset idn jemalloc geoip gssapi lmdb selinux static-libs systemtap test xml"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
+IUSE="dnstap doc doh fixed-rrset idn jemalloc geoip gssapi lmdb selinux systemtap test xml"
 RESTRICT="!test? ( test )"
 
 DEPEND="
@@ -25,7 +29,7 @@ DEPEND="
 	dev-libs/json-c:=
 	dev-libs/userspace-rcu:=
 	>=dev-libs/libuv-1.37.0:=
-	sys-libs/zlib:=
+	virtual/zlib:=
 	dev-libs/openssl:=[-bindist(-)]
 	>=sys-libs/libcap-2.1.0
 	dnstap? (
@@ -51,16 +55,14 @@ BDEPEND="
 	dev-lang/perl
 	virtual/pkgconfig
 	doc? ( dev-python/sphinx )
-	test? (
-		dev-util/cmocka
-	)
-	systemtap? (
-		dev-debug/systemtap
-	)
+	test? ( dev-util/cmocka )
+	systemtap? ( dev-debug/systemtap )
+	verify-sig? ( sec-keys/openpgp-keys-isc )
 "
 
 src_prepare() {
 	default
+	eautoreconf
 
 	# Don't clobber our toolchain defaults
 	sed -i -e '/FORTIFY_SOURCE=/d' configure || die
@@ -94,7 +96,6 @@ src_configure() {
 		$(use_enable dnstap)
 		$(use_enable doh)
 		$(use_with doh libnghttp2)
-		$(use_enable static-libs static)
 		$(use_enable geoip)
 		$(use_enable systemtap tracing)
 		$(use_with test cmocka)
@@ -145,9 +146,7 @@ src_install() {
 
 	newenvd "${FILESDIR}"/10bind.env 10bind
 
-	if ! use static-libs ; then
-		find "${ED}"/usr/lib* -name '*.la' -delete || die
-	fi
+	find "${ED}"/usr/lib* -name '*.la' -delete || die
 
 	#
 	# /var/bind
