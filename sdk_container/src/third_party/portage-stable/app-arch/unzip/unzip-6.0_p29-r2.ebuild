@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -11,25 +11,29 @@ MY_P="${PN}${MY_PV}"
 
 DESCRIPTION="unzipper for pkzip-compressed files"
 HOMEPAGE="https://infozip.sourceforge.net/UnZip.html"
-SRC_URI="https://downloads.sourceforge.net/infozip/${MY_P}.tar.gz
-	mirror://debian/pool/main/u/${PN}/${PN}_${PV/_p/-}.debian.tar.xz"
+SRC_URI="
+	https://downloads.sourceforge.net/infozip/${MY_P}.tar.gz
+	mirror://debian/pool/main/u/${PN}/${PN}_${PV/_p/-}.debian.tar.xz
+"
+S="${WORKDIR}/${MY_P}"
 
 LICENSE="Info-ZIP"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="bzip2 natspec unicode"
 
-DEPEND="bzip2? ( app-arch/bzip2 )
-	natspec? ( dev-libs/libnatspec )"
+DEPEND="
+	bzip2? ( app-arch/bzip2 )
+	natspec? ( dev-libs/libnatspec )
+"
 RDEPEND="${DEPEND}"
-
-S="${WORKDIR}/${MY_P}"
 
 PATCHES=(
 	"${WORKDIR}"/debian/patches
 	"${FILESDIR}"/${PN}-6.0-no-exec-stack.patch
 	"${FILESDIR}"/${PN}-6.0-format-security.patch
 	"${FILESDIR}"/${PN}-6.0-fix-false-overlap-detection-on-32bit-systems.patch
+	"${FILESDIR}"/${PN}-6.0-c99-configure.patch
 )
 
 src_prepare() {
@@ -40,6 +44,9 @@ src_prepare() {
 
 	default
 
+	sed -i \
+		-e 's:LFLAGS2="-s":LFLAGS2=:' \
+		unix/configure || die
 	sed -i -r \
 		-e '/^CFLAGS/d' \
 		-e '/CFLAGS/s:-O[0-9]?:$(CFLAGS) $(CPPFLAGS):' \
@@ -66,11 +73,11 @@ src_configure() {
 		*linux*)             TARGET="linux_noasm" ;;
 		*-darwin*)           TARGET="macosx" ;;
 		*-solaris*)          TARGET="linux_noasm" ;;
+		*-gnu)               TARGET="generic" ;;
+		# generic may work but there may be a better-suited target
+		# so we should get people to check.
 		*) die "Unknown target; please update the ebuild to handle ${CHOST}" ;;
 	esac
-
-	# Needed for Clang 16
-	append-flags -std=gnu89
 
 	[[ ${CHOST} == *linux* ]] && append-cppflags -DNO_LCHMOD
 	[[ ${CHOST} == *-solaris* ]] && append-cppflags -DNO_LCHMOD -DBSD4_4
