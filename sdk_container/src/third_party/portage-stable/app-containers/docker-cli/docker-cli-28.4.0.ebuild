@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,7 +7,7 @@ inherit shell-completion go-module
 MY_PV=${PV/_/-}
 
 # update this on every bump
-GIT_COMMIT=4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1
+GIT_COMMIT=d8eb465f86cfceeb57f8582e373d41a558d35503
 
 # To create the man pages tarball, run the following in the git source
 # directory:
@@ -18,13 +18,12 @@ GIT_COMMIT=4eba3773274f9d21ba90ae5bc719c3f1e4bb07a1
 DESCRIPTION="the command line binary for docker"
 HOMEPAGE="https://www.docker.com/"
 SRC_URI="https://github.com/docker/cli/archive/v${MY_PV}.tar.gz -> ${P}.tar.gz"
-SRC_URI+=" https://dev.gentoo.org/~williamh/dist/${P}-man.tar.xz"
 S="${WORKDIR}/cli-${PV}"
 
 LICENSE="Apache-2.0"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
-IUSE="hardened selinux"
+KEYWORDS="amd64 ~arm arm64 ~loong ppc64 ~riscv ~x86"
+IUSE="selinux"
 
 RDEPEND="selinux? ( sec-policy/selinux-docker )"
 
@@ -49,15 +48,14 @@ src_compile() {
 	CGO_CFLAGS+=" -I${ESYSROOT}/usr/include"
 	CGO_LDFLAGS+=" -L${ESYSROOT}/usr/$(get_libdir)"
 		emake \
-		LDFLAGS="$(usex hardened '-extldflags -fno-PIC' '')" \
 		VERSION="${PV}" \
 		GITCOMMIT="${GIT_COMMIT}" \
-		dynbinary
+		dynbinary manpages
 }
 
 src_install() {
 	dobin build/docker
-	doman "${WORKDIR}"/man/man?/*
+	doman man/man?/*
 	dobashcomp contrib/completion/bash/docker
 	bashcomp_alias docker dockerd
 	dofishcomp contrib/completion/fish/docker.fish
