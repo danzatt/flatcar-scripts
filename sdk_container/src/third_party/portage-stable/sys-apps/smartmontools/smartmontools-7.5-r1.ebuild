@@ -1,16 +1,27 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 inherit flag-o-matic systemd
+
 if [[ ${PV} == 9999 ]] ; then
-	ESVN_REPO_URI="https://svn.code.sf.net/p/smartmontools/code/trunk/smartmontools"
-	ESVN_PROJECT="smartmontools"
-	inherit autotools subversion
+	EGIT_REPO_URI="https://github.com/smartmontools/smartmontools.git"
+	inherit autotools git-r3
 else
-	SRC_URI="https://downloads.sourceforge.net/${PN}/${P}.tar.gz"
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~mips ppc ppc64 ~riscv sparc x86 ~amd64-linux ~x86-linux ~x64-macos"
+	VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/smartmontools.asc
+	inherit verify-sig
+
+	SRC_URI="
+		https://github.com/smartmontools/${PN}/releases/download/RELEASE_${PV//./_}/${P}.tar.gz
+		verify-sig? (
+			https://github.com/smartmontools/${PN}/releases/download/RELEASE_${PV//./_}/${P}.tar.gz.asc
+		)
+	"
+
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~sparc x86 ~x64-macos"
+
+	BDEPEND="verify-sig? ( sec-keys/openpgp-keys-smartmontools )"
 fi
 
 DESCRIPTION="Tools to monitor storage systems to provide advanced warning of disk degradation"
@@ -35,7 +46,7 @@ RDEPEND="
 	selinux? ( sec-policy/selinux-smartmon )
 	systemd? ( sys-apps/systemd )
 	update-drivedb? (
-		app-crypt/gnupg
+		app-alternatives/gpg
 		|| (
 			net-misc/curl
 			net-misc/wget
@@ -62,7 +73,7 @@ src_configure() {
 	use static && append-ldflags -static
 	# The build installs /etc/init.d/smartd, but we clobber it
 	# in our src_install, so no need to manually delete it.
-	myeconfargs=(
+	local myeconfargs=(
 		--with-drivedbdir="${EPREFIX}/var/db/${PN}" #575292
 		--with-initscriptdir="${EPREFIX}/etc/init.d"
 		#--with-smartdscriptdir="${EPREFIX}/usr/share/${PN}"
