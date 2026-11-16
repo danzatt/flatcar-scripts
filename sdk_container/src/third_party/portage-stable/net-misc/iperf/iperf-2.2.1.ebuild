@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -14,7 +14,7 @@ if [[ ${PV} == *9999* ]] ; then
 else
 	SRC_URI="https://downloads.sourceforge.net/iperf2/${P}.tar.gz"
 
-	KEYWORDS="amd64 arm ~hppa ~ppc ppc64 ~riscv ~sparc x86 ~amd64-linux ~x86-linux ~ppc-macos"
+	KEYWORDS="amd64 arm ~hppa ppc ppc64 ~riscv ~sparc x86"
 fi
 
 LICENSE="HPND"
@@ -22,6 +22,10 @@ SLOT="2"
 IUSE="debug"
 # Fails w/ connection refused to just-spawned daemon
 RESTRICT="test"
+
+PATCHES=(
+	"${FILESDIR}/${P}-musl.patch"
+)
 
 src_configure() {
 	local myeconfargs=(
