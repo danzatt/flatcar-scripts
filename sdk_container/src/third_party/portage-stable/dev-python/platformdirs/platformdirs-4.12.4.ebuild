@@ -1,10 +1,11 @@
-# Copyright 2021-2025 Gentoo Authors
+# Copyright 2021-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-DISTUTILS_USE_PEP517=flit
-PYTHON_COMPAT=( python3_{11..14} python3_{13,14}t pypy3_11 )
+DISTUTILS_USE_PEP517=flit-core
+PYPI_VERIFY_REPO=https://github.com/tox-dev/platformdirs
+PYTHON_COMPAT=( pypy3_12 python3_{12..15} python3_{14..15}t )
 
 inherit distutils-r1 pypi
 
@@ -16,7 +17,7 @@ HOMEPAGE="
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 
 BDEPEND="
 	test? (
@@ -46,4 +47,16 @@ src_configure() {
 		__version__ = version = '${PV}'
 		__version_tuple__ = version_tuple = (${PV//./, })
 	EOF
+}
+
+python_test() {
+	local EPYTEST_DESELECT=(
+		# failing on -Werror, because upstream doesn't bother using
+		# new pytest
+		tests/test_pytest_plugin.py::test_import_before_pytest_main
+	)
+
+	# have to disable removing tmp_paths since upstream mocks are
+	# incomplete and break teardown
+	epytest -p platformdirs.pytest_plugin -o tmp_path_retention_policy=all
 }
