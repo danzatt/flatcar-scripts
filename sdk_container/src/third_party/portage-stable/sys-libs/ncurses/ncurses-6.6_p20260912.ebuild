@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -7,7 +7,7 @@ EAPI=8
 # provide a configure option for the ABI version.
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/thomasdickey.asc
-inherit flag-o-matic toolchain-funcs multilib multilib-minimal preserve-libs usr-ldscript verify-sig
+inherit flag-o-matic toolchain-funcs multilib multilib-minimal preserve-libs verify-sig
 
 MY_PV="${PV:0:3}"
 MY_P="${PN}-${MY_PV}"
@@ -22,7 +22,7 @@ SRC_URI="
 "
 
 GENTOO_PATCH_DEV=sam
-GENTOO_PATCH_PV=6.5_p20250802
+GENTOO_PATCH_PV=6.6_p20260912
 GENTOO_PATCH_NAME=${PN}-${GENTOO_PATCH_PV}-patches
 
 # Populated below in a loop. Do not add patches manually here.
@@ -43,68 +43,44 @@ if [[ ${PV} == *_p* ]] ; then
 	# This array should contain a list of all the snapshots since the last
 	# release if there's no megapatch available yet.
 	PATCH_DATES=(
-		20240504
-		20240511
-		20240518
-		20240519
-		20240525
-		20240601
-		20240608
-		20240615
-		20240622
-		20240629
-		20240706
-		20240713
-		20240720
-		20240727
-		20240810
-		20240817
-		20240824
-		20240831
-		20240914
-		20240922
-		20240928
-		20241006
-		20241019
-		20241026
-		20241102
-		20241109
-		20241123
-		20241130
-		20241207
-		20241214
-		20241221
-		20241228
-		20250104
-		20250111
-		20250118
-		20250125
-		20250201
-		20250208
-		20250215
-		20250216
-		20250222
-		20250301
-		20250308
-		20250315
-		20250322
-		20250329
-		20250405
-		20250412
-		20250419
-		20250426
-		20250503
-		20250510
-		20250517
-		20250524
-		20250531
-		20250614
-		20250621
-		20250628
-		20250705
-		20250712
-		20250720
-		20250726
+		20251231
+		20260103
+		20260117
+		20260124
+		20260131
+		20260207
+		20260214
+		20260221
+		20260301
+		20260307
+		20260314
+		20260321
+		20260328
+		20260404
+		20260411
+		20260418
+		20260425
+		20260502
+		20260509
+		20260516
+		20260523
+		20260530
+		20260606
+		20260607
+		20260608
+		20260613
+		20260620
+		20260627
+		20260704
+		20260711
+		20260718
+		20260725
+		20260801
+		20260808
+		20260815
+		20260822
+		20260829
+		20260905
 
 		# Latest patch is just _pN = $(ver_cut 4)
 		$(ver_cut 4)
@@ -140,17 +116,18 @@ if [[ ${PV} == *_p* ]] ; then
 	fi
 fi
 
-SRC_URI+=" https://dev.gentoo.org/~${GENTOO_PATCH_DEV}/distfiles/${CATEGORY}/${PN}/${GENTOO_PATCH_NAME}.tar.xz"
+SRC_URI+=" https://distfiles.gentoo.org/pub/proj/base-system/ncurses/${GENTOO_PATCH_NAME}.tar.xz"
 S="${WORKDIR}/${MY_P}"
 
 LICENSE="MIT"
 # The subslot reflects the SONAME.
 SLOT="0/6"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="ada +cxx debug doc gpm minimal profile split-usr +stack-realign static-libs test tinfo trace"
 # In 6.5_p20250118, the C++ examples fail to link, but there's no automated
 # testsuite anyway. Controlling building examples isn't really what USE=test
-# is for. Just restrict them.
+# is for. Just restrict them. Still seems to fail after
+# https://lists.gnu.org/archive/html/bug-ncurses/2026-03/msg00013.html too.
 RESTRICT="!test? ( test ) test"
 
 # TODO: ncurses allows (and we take advantage of this, even) passing
@@ -209,14 +186,16 @@ src_configure() {
 	# bug #214642
 	BUILD_CPPFLAGS+=" -D_GNU_SOURCE"
 
-	# Build the various variants of ncurses -- narrow, wide, and threaded. #510440
-	# Order matters here -- we want unicode/thread versions to come last so that the
-	# binaries in /usr/bin support both wide and narrow.
+	# Build the various variants of ncurses -- wide, narrow, threaded (bug #510440).
+	# We only install programs & the terminfo DB for the wide version.
+	# Wide goes first because later variants won't overwrite existing files
+	# (at least partially).
+	#
 	# The naming is also important as we use these directly with filenames and when
 	# checking configure flags.
 	NCURSES_TARGETS=(
-		ncurses
 		ncursesw
+		ncurses
 		ncursest
 		ncursestw
 	)
@@ -238,6 +217,7 @@ src_configure() {
 			$(tc-getCC) -o x -x c - ${lbuildflags} -pipe >& /dev/null \
 			|| lbuildflags="${dbuildflags}"
 
+		einfo "Configuring target: minimal tic"
 		# We can't re-use the multilib BUILD_DIR because we run outside of it.
 		BUILD_DIR="${WORKDIR}" \
 		CC=${BUILD_CC} \
@@ -260,9 +240,10 @@ multilib_src_configure() {
 		use stack-realign && append-flags -mstackrealign
 	fi
 
-	local t
-	for t in "${NCURSES_TARGETS[@]}" ; do
-		do_configure "${t}"
+	local target
+	for target in "${NCURSES_TARGETS[@]}" ; do
+		einfo "Configuring target: ${target}"
+		do_configure "${target}"
 	done
 }
 
@@ -287,9 +268,10 @@ do_configure() {
 		# Now the rest of the various standard flags.
 		--with-shared
 		--enable-fvisibility
-		# (Originally disabled until bug #245417 is sorted out, but now
+
+		# Originally disabled until bug #245417 is sorted out, but now
 		# just keeping it off for good, given nobody needed it until now
-		# (2022) and we're trying to phase out bdb.)
+		# (2022) and we're trying to phase out bdb.
 		--without-hashed-db
 		$(use_with ada)
 		$(use_with cxx)
@@ -319,10 +301,9 @@ do_configure() {
 		$(use_enable !debug leaks)
 		$(use_enable debug expanded)
 		$(use_enable !debug macros)
-		$(multilib_native_with progs)
+		--without-progs
 		$(use_with test tests)
 		$(use_with trace)
-		$(use_with tinfo termlib)
 		--disable-stripping
 		--disable-pkg-ldflags
 	)
@@ -337,10 +318,11 @@ do_configure() {
 	esac
 
 	if [[ ${target} == ncurses*w ]] ; then
-		conf+=( --enable-widec )
+		conf+=( --enable-{widec,ext-colors} )
 	else
-		conf+=( --disable-widec )
+		conf+=( --disable-{widec,ext-colors} )
 	fi
+
 	if [[ ${target} == ncursest* ]] ; then
 		conf+=( --with-{pthread,reentrant} )
 	else
@@ -356,10 +338,37 @@ do_configure() {
 	else
 		conf+=( --includedir="${EPREFIX}"/usr/include/${target} )
 	fi
+
+	if [[ ${target} == "ncursesw" ]] ; then
+		# Overwrite libtinfo with the wide variant (bug #910430, bug #972804).
+		#
+		# Don't do this for all variants, as we can't mix ncurses with
+		# ncursestw, for example.
+		conf+=(
+			$(use_with tinfo termlib tinfo)
+			--with-ticlib=tic
+			--disable-tic-depends
+
+			$(multilib_native_with progs)
+		)
+	else
+		conf+=(
+			$(use_with tinfo termlib)
+			--with-ticlib
+			--disable-tic-depends
+
+			--disable-db-install
+		)
+	fi
+
 	# See comments in src_configure.
 	if [[ ${target} != "cross" ]] ; then
 		local cross_path="${WORKDIR}/cross"
-		[[ -d ${cross_path} ]] && export TIC_PATH="${cross_path}/progs/tic"
+		local tic="${cross_path}/progs/tic"
+		if [[ -x ${tic} ]] ; then
+			einfo "Using TIC=${tic}"
+			export TIC="${tic}"
+		fi
 	fi
 
 	ECONF_SOURCE="${S}" econf "${conf[@]}" "$@"
@@ -368,6 +377,7 @@ do_configure() {
 src_compile() {
 	# See comments in src_configure.
 	if ! has_version -b "~sys-libs/${P}:0" ; then
+		einfo "Building target: minimal tic"
 		BUILD_DIR="${WORKDIR}" do_compile cross -C progs tic$(get_exeext)
 	fi
 
@@ -375,9 +385,10 @@ src_compile() {
 }
 
 multilib_src_compile() {
-	local t
-	for t in "${NCURSES_TARGETS[@]}" ; do
-		do_compile "${t}"
+	local target
+	for target in "${NCURSES_TARGETS[@]}" ; do
+		einfo "Building target: ${target}"
+		do_compile "${target}"
 	done
 }
 
@@ -394,26 +405,28 @@ do_compile() {
 	# generation is quite small.
 	emake -j1 sources
 
-	# For some reason, sources depends on pc-files which depends on
-	# compiled libraries which depends on sources which ...
-	# Manually delete the pc-files file so the install step will
-	# create the .pc files we want.
-	rm -f misc/pc-files || die
 	emake "$@"
 }
 
 multilib_src_install() {
 	local target
 	for target in "${NCURSES_TARGETS[@]}" ; do
-		emake -C "${BUILD_DIR}/${target}" DESTDIR="${D}" install
+		case ${target} in
+			ncursesw)
+				einfo "Installing full target: ${target}"
+				(
+					# Make sure tic picks up the just-built library
+					local -x PATH="${BUILD_DIR}/${target}/progs${PATH+:${PATH}}"
+					local -x LD_LIBRARY_PATH="${BUILD_DIR}/${target}/lib${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}"
+					emake -C "${BUILD_DIR}/${target}" DESTDIR="${D}" install
+				)
+				;;
+			*)
+				einfo "Installing library-only target: ${target}"
+				emake -C "${BUILD_DIR}/${target}" DESTDIR="${D}" install.libs
+				;;
+		esac
 	done
-
-	# Move main libraries into /.
-	if multilib_is_native_abi ; then
-		gen_usr_ldscript -a \
-			"${NCURSES_TARGETS[@]}" \
-			$(usex tinfo 'tinfow tinfo' '')
-	fi
 
 	# Don't delete '*.dll.a', needed for linking, bug #631468
 	if ! use static-libs; then
@@ -490,9 +503,11 @@ multilib_src_install_all() {
 pkg_preinst() {
 	preserve_old_lib /$(get_libdir)/libncurses.so.5
 	preserve_old_lib /$(get_libdir)/libncursesw.so.5
+	preserve_old_lib /$(get_libdir)/libtinfow.so.6
 }
 
 pkg_postinst() {
 	preserve_old_lib_notify /$(get_libdir)/libncurses.so.5
 	preserve_old_lib_notify /$(get_libdir)/libncursesw.so.5
+	preserve_old_lib_notify /$(get_libdir)/libtinfow.so.6
 }
