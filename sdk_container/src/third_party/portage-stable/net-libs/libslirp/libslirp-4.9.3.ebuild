@@ -1,28 +1,27 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=7
+EAPI=8
 
 inherit meson
 
-KEYWORDS="amd64 arm64 ~loong ~m68k ~ppc ppc64 ~riscv x86"
 MY_P="${PN}-v${PV}"
-SRC_URI="https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v${PV}/${MY_P}.tar.gz -> ${P}.tar.gz"
+
 DESCRIPTION="A TCP-IP emulator used to provide virtual networking services"
 HOMEPAGE="https://gitlab.freedesktop.org/slirp/libslirp"
+SRC_URI="https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v${PV}/${MY_P}.tar.bz2 -> ${P}.tar.bz2"
+S=${WORKDIR}/${MY_P}
 
 LICENSE="BSD"
 SLOT="0"
+KEYWORDS="~amd64 ~arm64 ~loong ~m68k ~ppc ~ppc64 ~riscv ~x86"
 IUSE="static-libs valgrind"
 
 RDEPEND="dev-libs/glib:="
 # Valgrind usage is automagic but it's not so bad given it's a header-only dep.
-DEPEND="
-	${RDEPEND}
+DEPEND="${RDEPEND}
 	valgrind? ( dev-debug/valgrind )
 "
-
-S=${WORKDIR}/${MY_P}
 
 src_prepare() {
 	echo "${PV}" > .tarball-version || die
