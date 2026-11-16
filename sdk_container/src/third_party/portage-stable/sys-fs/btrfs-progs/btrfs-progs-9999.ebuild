@@ -1,12 +1,12 @@
-# Copyright 2008-2025 Gentoo Authors
+# Copyright 2008-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 # Please bump with dev-python/btrfsutil
 
-PYTHON_COMPAT=( python3_{11..14} )
-inherit bash-completion-r1 python-any-r1 udev
+PYTHON_COMPAT=( python3_{12..15} )
+inherit python-any-r1 shell-completion udev
 
 if [[ ${PV} == 9999 ]]; then
 	EGIT_REPO_URI="https://github.com/kdave/btrfs-progs.git"
@@ -26,7 +26,7 @@ else
 	S="${WORKDIR}"/${PN}-${MY_PV}
 
 	if [[ ${PV} != *_rc* ]] ; then
-		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~sparc ~x86"
+		KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 	fi
 fi
 
@@ -35,7 +35,7 @@ HOMEPAGE="https://btrfs.readthedocs.io/en/latest/"
 
 LICENSE="GPL-2"
 SLOT="0/0" # libbtrfs soname
-IUSE="+convert +man experimental reiserfs static static-libs udev +zstd"
+IUSE="+convert +man experimental +lzo reiserfs static static-libs udev +zstd"
 # Could support it with just !systemd => eudev, see mdadm, but let's
 # see if someone asks for it first.
 REQUIRED_USE="static? ( !udev )"
@@ -44,15 +44,15 @@ REQUIRED_USE="static? ( !udev )"
 RESTRICT="test"
 
 RDEPEND="
-	dev-libs/lzo:2=
 	sys-apps/util-linux:=[static-libs(+)?]
-	sys-libs/zlib:=
+	virtual/zlib:=
 	convert? (
 		sys-fs/e2fsprogs:=
 		reiserfs? (
 			>=sys-fs/reiserfsprogs-3.6.27
 		)
 	)
+	lzo? ( dev-libs/lzo:2= )
 	udev? ( virtual/libudev:= )
 	zstd? ( app-arch/zstd:= )
 "
@@ -61,15 +61,15 @@ DEPEND="
 	>=sys-kernel/linux-headers-5.10
 	convert? ( sys-apps/acl )
 	static? (
-		dev-libs/lzo:2[static-libs(+)]
 		sys-apps/util-linux:0[static-libs(+)]
-		sys-libs/zlib:0[static-libs(+)]
+		virtual/zlib:=[static-libs(+)]
 		convert? (
 			sys-fs/e2fsprogs[static-libs(+)]
 			reiserfs? (
 				>=sys-fs/reiserfsprogs-3.6.27[static-libs(+)]
 			)
 		)
+		lzo? ( dev-libs/lzo:2[static-libs(+)] )
 		zstd? ( app-arch/zstd[static-libs(+)] )
 	)
 "
@@ -98,12 +98,9 @@ pkg_setup() {
 
 if [[ ${PV} != 9999 ]]; then
 	src_unpack() {
-		# Upstream sign the decompressed .tar
 		if use verify-sig; then
-			einfo "Unpacking ${MY_P}.tar.xz ..."
-			verify-sig_verify_detached - "${DISTDIR}"/${MY_P}.tar.sign \
-				< <(xz -cd "${DISTDIR}"/${MY_P}.tar.xz | tee >(tar -xf -))
-			assert "Unpack failed"
+			verify-sig_uncompress_verify_unpack "${DISTDIR}"/${MY_P}.tar.xz \
+				"${DISTDIR}"/${MY_P}.tar.sign
 		else
 			default
 		fi
@@ -130,10 +127,10 @@ src_configure() {
 	local myeconfargs=(
 		--bindir="${EPREFIX}"/sbin
 
-		--enable-lzo
 		$(use_enable experimental)
 		--disable-python
 		$(use_enable convert)
+		$(use_enable lzo)
 		$(use_enable man documentation)
 		$(use_enable elibc_glibc backtrace)
 		$(use_enable static-libs static)
@@ -152,8 +149,7 @@ src_configure() {
 		python_setup
 	fi
 
-	# bash as a temporary workaround for https://github.com/kdave/btrfs-progs/pull/721
-	CONFIG_SHELL="${BROOT}"/bin/bash econf "${myeconfargs[@]}"
+	econf "${myeconfargs[@]}"
 }
 
 src_compile() {
