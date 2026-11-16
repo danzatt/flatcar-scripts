@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,15 +6,16 @@ EAPI=8
 PLOCALES="ca de es fr ja ko pt_BR ru sv tr uk"
 PLOCALES_BIN="${PLOCALES} bg cs eu fi hu id it ka nb nl pl pt tg zh_TW zh_CN"
 PLOCALE_BACKUP="sv"
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..14} )
 
 inherit autotools linux-info multilib-minimal optfeature plocale \
-	python-single-r1 pam systemd toolchain-funcs
+	python-single-r1 pam systemd toolchain-funcs verify-sig
 
 DESCRIPTION="System Security Services Daemon provides access to identity and authentication"
 HOMEPAGE="https://github.com/SSSD/sssd"
 if [[ ${PV} != 9999 ]]; then
-	SRC_URI="https://github.com/SSSD/sssd/releases/download/${PV}/${P}.tar.gz"
+	SRC_URI="https://github.com/SSSD/sssd/releases/download/${PV}/${P}.tar.gz
+		https://github.com/SSSD/sssd/releases/download/${PV}/${P}.tar.gz.asc"
 	KEYWORDS="amd64 ~arm ~arm64 ~hppa ~m68k ~mips ~ppc ~ppc64 ~riscv ~sparc x86"
 else
 	inherit git-r3
@@ -51,7 +52,7 @@ DEPEND="
 	virtual/libintl
 	acl? ( net-fs/cifs-utils[acl] )
 	netlink? ( dev-libs/libnl:3 )
-	nfsv4? ( >=net-fs/nfs-utils-2.3.1-r2 )
+	nfsv4? ( >=net-fs/nfs-utils-2.3.1-r2[nfsv4] )
 	nls? ( >=sys-devel/gettext-0.18 )
 	passkey? ( dev-libs/libfido2:= )
 	python? (
@@ -73,7 +74,6 @@ DEPEND="
 	)
 	systemtap? ( dev-debug/systemtap )"
 RDEPEND="${DEPEND}
-	passkey? ( sys-apps/pcsc-lite[policykit] )
 	selinux? ( >=sec-policy/selinux-sssd-2.20120725-r9 )"
 DEPEND+="
 	sys-apps/shadow"
@@ -95,13 +95,17 @@ BDEPEND="
 		sys-libs/pam_wrapper
 		sys-libs/uid_wrapper
 	)
+	verify-sig? ( sec-keys/openpgp-keys-sssd )
 "
+
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/sssd.asc
 
 CONFIG_CHECK="~KEYS"
 
 PATCHES=(
 	"${FILESDIR}/${PN}-2.8.2-krb5_pw_locked.patch"
 	"${FILESDIR}/${PN}-2.9.6-conditional-python-install.patch"
+	"${FILESDIR}/${PN}-2.9.7-kerberos-1-22.patch"
 )
 
 MULTILIB_WRAPPED_HEADERS=(
@@ -225,6 +229,7 @@ multilib_src_configure() {
 
 	use systemd && myconf+=(
 		--with-systemdunitdir=$(systemd_get_systemunitdir)
+		--with-syslog=$(usex systemd journald syslog)
 	)
 
 	if ! multilib_is_native_abi; then
@@ -236,6 +241,7 @@ multilib_src_configure() {
 			{DHASH,UNISTRING,INI_CONFIG_V{0,1,1_1,1_3}}_{CFLAGS,LIBS}=' '
 			{PCRE,CARES,SYSTEMD_LOGIN,SASL,DBUS,CRYPTO,P11_KIT}_{CFLAGS,LIBS}=' '
 			{NDR_NBT,SAMBA_UTIL,SMBCLIENT,NDR_KRB5PAC,JANSSON}_{CFLAGS,LIBS}=' '
+			JOURNALD_{CFLAGS,LIBS}=' '
 
 			# use native include path for dbus (needed for build)
 			DBUS_CFLAGS="${native_dbus_cflags}"
