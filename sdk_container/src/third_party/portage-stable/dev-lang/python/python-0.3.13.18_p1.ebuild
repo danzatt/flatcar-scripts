@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
@@ -6,7 +6,7 @@ EAPI="8"
 WANT_LIBTOOL="none"
 
 inherit autotools check-reqs flag-o-matic linux-info
-inherit multiprocessing pax-utils python-utils-r1 toolchain-funcs
+inherit multiprocessing pax-utils toolchain-funcs
 inherit verify-sig
 
 REAL_PV=${PV#0.}
@@ -22,7 +22,7 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://www.python.org/ftp/python/${REAL_PV%%_*}/${MY_P}.tar.xz
-	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	https://distfiles.gentoo.org/pub/proj/python/patchsets/${PYVER%t}/${PATCHSET}.tar.xz
 	verify-sig? (
 		https://www.python.org/ftp/python/${REAL_PV%%_*}/${MY_P}.tar.xz.asc
 	)
@@ -52,10 +52,10 @@ RDEPEND="
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	sys-apps/util-linux
+	>=virtual/zlib-1.1.3:=
 	virtual/libintl
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
-	kernel_linux? ( sys-apps/util-linux:= )
 	ncurses? ( >=sys-libs/ncurses-5.2:= )
 	readline? (
 		!libedit? ( >=sys-libs/readline-4.1:= )
@@ -85,13 +85,8 @@ BDEPEND="
 	dev-build/autoconf-archive
 	app-alternatives/awk
 	virtual/pkgconfig
-	verify-sig? ( >=sec-keys/openpgp-keys-python-20221025 )
+	verify-sig? ( >=sec-keys/openpgp-keys-python-20260805 )
 "
-if [[ ${PV} != *_alpha* ]]; then
-	RDEPEND+="
-		dev-lang/python-exec[python_targets_python${PYVER/./_}(-)]
-	"
-fi
 PDEPEND="
 	ensurepip? ( dev-python/ensurepip-pip )
 "
@@ -173,10 +168,10 @@ build_cbuild_python() {
 	#
 	# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
 	local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-	local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
+	local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
 	local -x CFLAGS= LDFLAGS=
 	local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-	local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
+	local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
 
 	# We need to build our own Python on CBUILD first, and feed it in.
 	# bug #847910
@@ -584,28 +579,4 @@ src_install() {
 		-e "s:@PYDOC@:pydoc${PYVER}:" \
 		-i "${ED}/etc/conf.d/pydoc-${PYVER}" \
 		"${ED}/etc/init.d/pydoc-${PYVER}" || die "sed failed"
-
-	# python-exec wrapping support
-	local pymajor=${PYVER%.*}
-	local EPYTHON=python${PYVER}
-	local scriptdir=${D}$(python_get_scriptdir)
-	mkdir -p "${scriptdir}" || die
-	# python and pythonX
-	ln -s "../../../bin/${abiver}" "${scriptdir}/python${pymajor}" || die
-	ln -s "python${pymajor}" "${scriptdir}/python" || die
-	# python-config and pythonX-config
-	# note: we need to create a wrapper rather than symlinking it due
-	# to some random dirname(argv[0]) magic performed by python-config
-	cat > "${scriptdir}/python${pymajor}-config" <<-EOF || die
-		#!/bin/sh
-		exec "${abiver}-config" "\${@}"
-	EOF
-	chmod +x "${scriptdir}/python${pymajor}-config" || die
-	ln -s "python${pymajor}-config" "${scriptdir}/python-config" || die
-	# pydoc
-	ln -s "../../../bin/pydoc${PYVER}" "${scriptdir}/pydoc" || die
-	# idle
-	if use tk; then
-		ln -s "../../../bin/idle${PYVER}" "${scriptdir}/idle" || die
-	fi
 }

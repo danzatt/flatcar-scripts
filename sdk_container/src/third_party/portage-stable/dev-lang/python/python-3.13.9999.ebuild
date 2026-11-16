@@ -1,17 +1,15 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
 
-LLVM_COMPAT=( 18 )
-LLVM_OPTIONAL=1
 WANT_LIBTOOL="none"
 
-inherit autotools check-reqs flag-o-matic git-r3 linux-info llvm-r1
+inherit autotools check-reqs flag-o-matic git-r3 linux-info
 inherit multiprocessing pax-utils python-utils-r1 toolchain-funcs
 
 PYVER=$(ver_cut 1-2)
-PATCHSET="python-gentoo-patches-3.13.4"
+PATCHSET="python-gentoo-patches-3.13.14"
 
 DESCRIPTION="An interpreted, interactive, object-oriented programming language"
 HOMEPAGE="
@@ -19,7 +17,7 @@ HOMEPAGE="
 	https://github.com/python/cpython/
 "
 SRC_URI="
-	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	https://distfiles.gentoo.org/pub/proj/python/patchsets/${PYVER%t}/${PATCHSET}.tar.xz
 "
 EGIT_REPO_URI="https://github.com/python/cpython.git"
 EGIT_BRANCH=${PYVER}
@@ -27,10 +25,9 @@ EGIT_BRANCH=${PYVER}
 LICENSE="PSF-2"
 SLOT="${PYVER}"
 IUSE="
-	bluetooth debug +ensurepip examples gdbm jit libedit +ncurses pgo
+	bluetooth debug +ensurepip examples gdbm libedit +ncurses pgo
 	+readline +sqlite +ssl test tk valgrind
 "
-REQUIRED_USE="jit? ( ${LLVM_REQUIRED_USE} )"
 RESTRICT="!test? ( test )"
 
 # Do not add a dependency on dev-lang/python to this ebuild.
@@ -47,10 +44,10 @@ RDEPEND="
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	sys-apps/util-linux
+	>=virtual/zlib-1.1.3:=
 	virtual/libintl
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
-	kernel_linux? ( sys-apps/util-linux:= )
 	ncurses? ( >=sys-libs/ncurses-5.2:= )
 	readline? (
 		!libedit? ( >=sys-libs/readline-4.1:= )
@@ -80,12 +77,6 @@ BDEPEND="
 	dev-build/autoconf-archive
 	app-alternatives/awk
 	virtual/pkgconfig
-	jit? (
-		$(llvm_gen_dep '
-			llvm-core/clang:${LLVM_SLOT}
-			llvm-core/llvm:${LLVM_SLOT}
-		')
-	)
 "
 if [[ ${PV} != *_alpha* ]]; then
 	RDEPEND+="
@@ -112,19 +103,10 @@ pkg_pretend() {
 	if use pgo || use test; then
 		check-reqs_pkg_pretend
 	fi
-
-	if use jit; then
-		ewarn "USE=jit is considered experimental upstream.  Using it"
-		ewarn "could lead to unexpected breakage, including race conditions"
-		ewarn "and crashes, respectively.  Please do not file Gentoo bugs, unless"
-		ewarn "you can reproduce the problem with dev-lang/python[-jit].  Instead,"
-		ewarn "please consider reporting JIT problems upstream."
-	fi
 }
 
 pkg_setup() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
-		use jit && llvm-r1_pkg_setup
 		if use test || use pgo; then
 			check-reqs_pkg_setup
 
@@ -172,10 +154,10 @@ build_cbuild_python() {
 	#
 	# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
 	local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-	local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
+	local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
 	local -x CFLAGS= LDFLAGS=
 	local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-	local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
+	local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
 
 	# We need to build our own Python on CBUILD first, and feed it in.
 	# bug #847910
@@ -389,7 +371,6 @@ src_configure() {
 		--enable-gil
 
 		$(use_with debug assertions)
-		$(use_enable jit experimental-jit)
 		$(use_enable pgo optimizations)
 		$(use_with readline readline "$(usex libedit editline readline)")
 		$(use_with valgrind)
