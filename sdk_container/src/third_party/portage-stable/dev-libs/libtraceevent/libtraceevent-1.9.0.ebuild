@@ -1,4 +1,4 @@
-# Copyright 2019-2024 Gentoo Authors
+# Copyright 2019-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -30,9 +30,15 @@ BDEPEND="
 	test? ( dev-util/cunit )
 "
 
+PATCHES=(
+	"${FILESDIR}"/${P}-32-bit-tests.patch
+	"${FILESDIR}"/${P}-32-bit-tests-deux.patch
+)
+
 src_configure() {
 	local emesonargs=(
 		-Dasciidoctor=false
+		-Ddoc=$(usex doc true false)
 	)
 
 	# TODO: get docs & tests optional upstream
