@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -12,17 +12,16 @@ if [[ "${PV}" == *9999 ]] ; then
 	EGIT_REPO_URI="https://github.com/axboe/liburing.git"
 else
 	SRC_URI="https://github.com/axboe/liburing/archive/refs/tags/${P}.tar.gz"
-	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 sparc ~x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 	QA_PKGCONFIG_VERSION=${PV}
 fi
 
 S="${WORKDIR}"/liburing-${P}
 LICENSE="MIT"
 SLOT="0/2" # liburing.so major version
-
 IUSE="examples static-libs test"
-# fsync test hangs forever
-RESTRICT="!test? ( test )"
+# https://lore.kernel.org/io-uring/13d5c94e-9f3c-4a0e-a468-562e78155ba5@kernel.dk/
+RESTRICT="!test? ( test ) test"
 
 # At least installed headers need <linux/*>, bug #802516
 DEPEND=">=sys-kernel/linux-headers-5.1"
