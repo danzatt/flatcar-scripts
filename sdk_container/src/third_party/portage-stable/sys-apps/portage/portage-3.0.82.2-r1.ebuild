@@ -1,9 +1,10 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=7
+EAPI=8
 
-PYTHON_COMPAT=( pypy3_11 python3_{11..13} )
+PYTHON_COMPAT=( python3_{12..15} )
+SPHINX_PYTHON_COMPAT=( python3_{13..15} )
 PYTHON_REQ_USE='bzip2(+),threads(+)'
 TMPFILES_OPTIONAL=1
 
@@ -20,13 +21,16 @@ if [[ ${PV} == 9999 ]] ; then
 	inherit git-r3
 else
 	SRC_URI="https://gitweb.gentoo.org/proj/portage.git/snapshot/${P}.tar.bz2"
-	KEYWORDS="~alpha amd64 ~arm ~arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 fi
 
 LICENSE="GPL-2"
 SLOT="0"
 IUSE="apidoc build doc gentoo-dev +ipc +native-extensions +rsync-verify selinux test xattr"
-REQUIRED_USE="${PYTHON_REQUIRED_USE}"
+REQUIRED_USE="
+	${PYTHON_REQUIRED_USE}
+	apidoc? ( || ( $(python_gen_useflags "${SPHINX_PYTHON_COMPAT[@]}") ) )
+"
 RESTRICT="!test? ( test )"
 
 BDEPEND="
@@ -37,8 +41,10 @@ BDEPEND="
 	sys-devel/patch
 	!build? ( $(python_gen_impl_dep 'ssl(+)') )
 	apidoc? (
-		dev-python/sphinx[${PYTHON_USEDEP}]
-		dev-python/sphinx-epytext[${PYTHON_USEDEP}]
+		$(python_gen_cond_dep '
+			dev-python/sphinx[${PYTHON_USEDEP}]
+			dev-python/sphinx-epytext[${PYTHON_USEDEP}]
+		' "${SPHINX_PYTHON_COMPAT[@]}")
 	)
 	doc? (
 		~app-text/docbook-xml-dtd-4.4
@@ -53,7 +59,7 @@ BDEPEND="
 # For whirlpool hash, require python[ssl] (bug #425046).
 RDEPEND="
 	${PYTHON_DEPS}
-	acct-user/portage
+	>=acct-user/portage-0-r4
 	>=app-arch/tar-1.27
 	app-arch/zstd
 	>=app-misc/pax-utils-0.1.17
@@ -63,17 +69,20 @@ RDEPEND="
 	!build? (
 		>=app-admin/eselect-1.2
 		app-portage/getuto
-		>=app-shells/bash-5.0:0
+		>=app-shells/bash-5.3:0
+		dev-util/debugedit
 		>=sec-keys/openpgp-keys-gentoo-release-20240703
 		>=sys-apps/sed-4.0.5
 		rsync-verify? (
-			>=app-crypt/gnupg-2.2.4-r2[ssl(-)]
+			app-alternatives/gpg[ssl(-)]
 			>=app-portage/gemato-14.5[${PYTHON_USEDEP}]
 		)
 	)
-	elibc_glibc? ( >=sys-apps/sandbox-2.2 )
-	elibc_musl? ( >=sys-apps/sandbox-2.2 )
-	kernel_linux? ( sys-apps/util-linux )
+	kernel_linux? (
+		sys-apps/util-linux
+		elibc_glibc? ( >=sys-apps/sandbox-2.2 )
+		elibc_musl? ( >=sys-apps/sandbox-2.2 )
+	)
 	selinux? ( >=sys-libs/libselinux-2.0.94[python,${PYTHON_USEDEP}] )
 	xattr? ( kernel_linux? (
 		>=sys-apps/install-xattr-0.3
@@ -89,10 +98,20 @@ PDEPEND="
 	)
 "
 
+PATCHES=(
+	"${FILESDIR}"/${P}-qemu-filtered-vars.patch
+)
+
 pkg_pretend() {
 	local CONFIG_CHECK="~IPC_NS ~PID_NS ~NET_NS ~UTS_NS"
 
 	check_extra_config
+}
+
+my_python_check_deps() {
+	use apidoc || return 0
+	python_has_version -b "dev-python/sphinx[${PYTHON_USEDEP}]" &&
+		python_has_version -b "dev-python/sphinx-epytext[${PYTHON_USEDEP}]"
 }
 
 src_prepare() {
@@ -109,11 +128,11 @@ src_prepare() {
 src_configure() {
 	local code_only=false
 	python_foreach_impl my_src_configure
+	[[ ${code_only} == false ]] && die "Documentation and additional configuration aren't getting built as expected"
 }
 
 my_src_configure() {
 	local emesonargs=(
-		-Dcode-only=${code_only}
 		-Deprefix="${EPREFIX}"
 		-Dportage-bindir="${EPREFIX}/usr/lib/portage/${EPYTHON}"
 		-Ddocdir="${EPREFIX}/usr/share/doc/${PF}"
@@ -136,8 +155,14 @@ my_src_configure() {
 		emesonargs+=( $(meson_use rsync-verify) )
 	fi
 
+	if [[ "${code_only}" == "false" ]] && my_python_check_deps; then
+		emesonargs+=( -Dcode-only=false )
+		code_only=true
+	else
+		emesonargs+=( -Dcode-only=true )
+	fi
+
 	meson_src_configure
-	code_only=true
 }
 
 src_compile() {
