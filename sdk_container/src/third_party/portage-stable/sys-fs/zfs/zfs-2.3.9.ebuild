@@ -1,11 +1,16 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
+# Maintainers should consider lurking in the ZFS IRC channels (there's several)
+# and regularly checking ZFS GitHub issues and PRs. Look out for the 'zfs-*'
+# stable backport PRs when they're opened and subscribe to them for any important
+# cherry-picks that may be needed in advance.
+
 DISTUTILS_OPTIONAL=1
 DISTUTILS_USE_PEP517=setuptools
-PYTHON_COMPAT=( python3_{10..12} )
+PYTHON_COMPAT=( python3_{12..15} )
 
 inherit autotools bash-completion-r1 dist-kernel-utils distutils-r1 flag-o-matic linux-info pam systemd udev usr-ldscript
 
@@ -22,10 +27,10 @@ else
 	MY_P="${P/_rc/-rc}"
 	SRC_URI="https://github.com/openzfs/${PN}/releases/download/${MY_P}/${MY_P}.tar.gz"
 	SRC_URI+=" verify-sig? ( https://github.com/openzfs/${PN}/releases/download/${MY_P}/${MY_P}.tar.gz.asc )"
-	S="${WORKDIR}/${P%_rc?}"
+	S="${WORKDIR}/${MY_P}"
 
 	if [[ ${PV} != *_rc* ]]; then
-		KEYWORDS="amd64 arm64 ppc64 ~riscv ~sparc"
+		KEYWORDS="amd64 arm64 ~loong ppc64 ~riscv ~sparc"
 	fi
 fi
 
@@ -33,23 +38,25 @@ LICENSE="BSD-2 CDDL MIT"
 # just libzfs soname major for now.
 # possible candidates: libuutil, libzpool, libnvpair. Those do not provide stable abi, but are considered.
 # see libsoversion_check() below as well
-SLOT="0/5"
-IUSE="custom-cflags debug dist-kernel kernel-builtin minimal nls pam python +rootfs selinux test-suite"
+SLOT="0/6"
+IUSE="custom-cflags debug dist-kernel kernel-builtin minimal nls pam python +rootfs selinux test-suite unwind"
 
 DEPEND="
+	dev-libs/openssl:=
 	net-libs/libtirpc:=
 	sys-apps/util-linux
-	sys-libs/zlib
+	virtual/zlib:=
 	virtual/libudev:=
-	dev-libs/openssl:0=
 	!minimal? ( ${PYTHON_DEPS} )
 	pam? ( sys-libs/pam )
 	python? (
 		$(python_gen_cond_dep 'dev-python/cffi[${PYTHON_USEDEP}]' 'python*')
 	)
+	unwind? ( sys-libs/libunwind:= )
 "
 
-BDEPEND="app-alternatives/awk
+BDEPEND="
+	app-alternatives/awk
 	virtual/pkgconfig
 	nls? ( sys-devel/gettext )
 	python? (
@@ -66,11 +73,12 @@ if [[ ${PV} != "9999" ]] ; then
 fi
 
 # awk is used for some scripts, completions, and the Dracut module
-RDEPEND="${DEPEND}
+RDEPEND="
+	${DEPEND}
 	!kernel-builtin? ( ~sys-fs/zfs-kmod-${PV}:= )
 	!prefix? ( virtual/udev )
-	sys-fs/udev-init-scripts
 	app-alternatives/awk
+	sys-fs/udev-init-scripts
 	dist-kernel? ( virtual/dist-kernel:= )
 	rootfs? (
 		app-alternatives/cpio
@@ -102,10 +110,7 @@ REQUIRED_USE="
 RESTRICT="test"
 
 PATCHES=(
-	# bug #854333
-	"${FILESDIR}"/2.1.5-r2-dracut-non-root.patch
-
-	"${FILESDIR}"/2.1.5-dracut-zfs-missing.patch
+	"${FILESDIR}"/${PN}-2.1.11-gentoo.patch
 )
 
 pkg_pretend() {
@@ -182,6 +187,9 @@ src_prepare() {
 		popd >/dev/null || die
 	fi
 
+	# Tries to use /etc/conf.d which we reserve for OpenRC
+	sed -i -e '/EnvironmentFile/d' etc/systemd/system/zfs*.in || die
+
 	# prevent errors showing up on zfs-mount stop, #647688
 	# openrc will unmount all filesystems anyway.
 	sed -i "/^ZFS_UNMOUNT=/ s/yes/no/" "etc/default/zfs.in" || die
@@ -190,13 +198,6 @@ src_prepare() {
 src_configure() {
 	use custom-cflags || strip-flags
 	use minimal || python_setup
-
-	# All the same issue:
-	# Segfaults w/ GCC 12 and 'zfs send'
-	# bug #856373
-	# https://github.com/openzfs/zfs/issues/13620
-	# https://github.com/openzfs/zfs/issues/13605
-	append-flags -fno-tree-vectorize
 
 	local myconf=(
 		--bindir="${EPREFIX}/bin"
@@ -225,6 +226,7 @@ src_configure() {
 		$(use_enable nls)
 		$(use_enable pam)
 		$(use_enable python pyzfs)
+		$(use_with unwind libunwind)
 		--disable-static
 		$(usex minimal --without-python --with-python="${EPYTHON}")
 	)
@@ -290,7 +292,7 @@ pkg_postinst() {
 	fi
 
 	if systemd_is_booted || has_version sys-apps/systemd; then
-		einfo "Please refer to ${EROOT}/$(systemd_get_systempresetdir)/50-zfs.preset"
+		einfo "Please refer to $(systemd_get_systempresetdir)/50-zfs.preset"
 		einfo "for default zfs systemd service configuration"
 	else
 		[[ -e "${EROOT}/etc/runlevels/boot/zfs-import" ]] || \
