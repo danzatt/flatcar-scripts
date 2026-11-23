@@ -1,7 +1,7 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=8
+EAPI=9
 
 inherit go-module
 
@@ -13,16 +13,17 @@ if [[ ${PV} == 9999 ]]; then
 	EGIT_REPO_URI="https://github.com/docker/buildx.git"
 else
 	SRC_URI="https://github.com/docker/buildx/archive/refs/tags/v${PV}.tar.gz -> ${P}.tar.gz"
-	KEYWORDS="amd64 ~arm arm64 ppc64 ~riscv ~x86"
+	KEYWORDS="~amd64 ~arm ~arm64 ~ppc64 ~riscv ~x86"
 	S=${WORKDIR}/${P#docker-}
 fi
 
 LICENSE="Apache-2.0"
 # Dependent licenses
-LICENSE+=" Apache-2.0 BSD BSD-2 ISC MIT MPL-2.0"
+LICENSE+=" Apache-2.0 BSD BSD-2 ISC MIT MPL-2.0 Unicode-DFS-2016"
 SLOT="0"
 
 RDEPEND="app-containers/docker-cli"
+BDEPEND=">=dev-lang/go-1.26.3"
 
 src_compile() {
 	local _buildx_r='github.com/docker/buildx'
