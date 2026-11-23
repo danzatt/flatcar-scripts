@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -11,7 +11,7 @@ SRC_URI="https://github.com/opensvc/${PN}/archive/refs/tags/${PV}.tar.gz -> ${P}
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~alpha amd64 ~arm arm64 ~loong ppc ppc64 ~riscv x86"
+KEYWORDS="~alpha amd64 ~arm arm64 ~loong ppc ppc64 ~riscv ~s390 x86"
 IUSE="systemd test"
 RESTRICT="!test? ( test )"
 
@@ -32,10 +32,6 @@ BDEPEND="virtual/pkgconfig"
 
 CONFIG_CHECK="~DM_MULTIPATH"
 
-PATCHES=(
-	"${FILESDIR}"/${PN}-0.9.7-remove-Werror.patch
-)
-
 myemake() {
 	local myemakeargs=(
 		prefix="${EPREFIX}"
@@ -50,6 +46,7 @@ myemake() {
 		FORTIFY_OPT=
 		OPTFLAGS=
 		FAKEVAR=1
+		WERROR=
 		V=1
 	)
 
