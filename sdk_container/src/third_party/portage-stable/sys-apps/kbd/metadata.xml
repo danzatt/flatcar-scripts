@@ -8,4 +8,8 @@
 	<upstream>
 		<remote-id type="github">legionus/kbd</remote-id>
 	</upstream>
+	<use>
+		<flag name="pam">Enable 'vlock' program (requires <pkg>sys-libs/pam</pkg>)</flag>
+		<flag name="xkb">Allow to generate kernel keymaps based on xkb database from <pkg>x11-libs/libxkbcommon</pkg></flag>
+	</use>
 </pkgmetadata>

@@ -1,7 +1,9 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
+
+inherit locale-utils
 
 #GAWK_IS_BETA=yes
 
@@ -29,10 +31,10 @@ else
 	SRC_URI="mirror://gnu/gawk/${P}.tar.xz"
 	SRC_URI+=" verify-sig? ( mirror://gnu/gawk/${P}.tar.xz.sig )"
 
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 fi
 
-LICENSE="GPL-3+"
+LICENSE="GPL-3+ pma? ( AGPL-3+ )"
 SLOT="0"
 # The gawk docs claim MPFR support is "on parole" and may be removed,
 # https://www.gnu.org/software/gawk/manual/html_node/MPFR-On-Parole.html
@@ -97,6 +99,16 @@ src_configure() {
 	)
 
 	econf "${myeconfargs[@]}"
+}
+
+src_test() {
+	# Avoid hangs with failed tests, bug #970495
+	local -x PAGER=cat
+
+	# See GAWKLOCALE=<locale> use in test/Makefile.in, bug #970495
+	elocale_gen el_GR.ISO-8859-7 en_US.UTF-8 fr_FR.UTF-8 ja_JP.UTF-8 ru_RU.UTF-8
+
+	emake check
 }
 
 src_install() {
