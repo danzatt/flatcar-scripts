@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # please keep this ebuild at EAPI 8 -- sys-apps/portage dep
@@ -7,8 +7,8 @@ EAPI=8
 # please bump dev-python/ensurepip-setuptools along with this package!
 
 DISTUTILS_USE_PEP517=standalone
-PYTHON_TESTED=( python3_{11..14} pypy3_11 )
-PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" python3_{13,14}t )
+PYTHON_TESTED=( python3_{12..14} )
+PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" python3_15 python3_{14..15}t )
 PYTHON_REQ_USE="xml(+)"
 
 inherit distutils-r1 pypi
@@ -21,7 +21,7 @@ HOMEPAGE="
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="test"
 RESTRICT="!test? ( test )"
 
@@ -129,6 +129,7 @@ python_test() {
 
 	local EPYTEST_XDIST=1
 	local -x PRE_BUILT_SETUPTOOLS_WHEEL=${DISTUTILS_WHEEL_PATH}
-	epytest -o tmp_path_retention_policy=all \
+	local EPYTEST_PLUGINS=( pytest-{home,subprocess,timeout} )
+	epytest -o filterwarnings= -o tmp_path_retention_policy=all \
 		-m "not uses_network" setuptools
 }
