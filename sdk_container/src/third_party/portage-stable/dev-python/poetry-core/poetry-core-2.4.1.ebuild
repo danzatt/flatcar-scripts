@@ -1,10 +1,11 @@
-# Copyright 2022-2025 Gentoo Authors
+# Copyright 2022-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 DISTUTILS_USE_PEP517=standalone
-PYTHON_TESTED=( pypy3_11 python3_{11..14} )
+PYPI_VERIFY_REPO=https://github.com/python-poetry/poetry-core
+PYTHON_TESTED=( python3_{12..15} python3_{14..15}t )
 PYTHON_COMPAT=( "${PYTHON_TESTED[@]}" )
 
 inherit distutils-r1 pypi
@@ -17,14 +18,16 @@ HOMEPAGE="
 
 LICENSE="MIT"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~arm64-macos ~x64-macos"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~arm64-macos ~x64-macos"
+IUSE="test"
+RESTRICT="!test? ( test )"
 
 # check inside vendors/pyproject.toml
 # (note that some are indirect deps)
 RDEPEND="
-	>=dev-python/fastjsonschema-2.21.1[${PYTHON_USEDEP}]
-	>=dev-python/lark-1.2.2[${PYTHON_USEDEP}]
-	>=dev-python/packaging-24.2[${PYTHON_USEDEP}]
+	>=dev-python/fastjsonschema-2.21.2[${PYTHON_USEDEP}]
+	>=dev-python/lark-1.3.1[${PYTHON_USEDEP}]
+	>=dev-python/packaging-26.2[${PYTHON_USEDEP}]
 "
 BDEPEND="
 	${RDEPEND}
@@ -40,8 +43,6 @@ BDEPEND="
 	)
 "
 
-distutils_enable_tests pytest
-
 src_prepare() {
 	# remove vendoring of dependencies
 	rm -r src/poetry/core/_vendor || die
@@ -56,11 +57,23 @@ python_test() {
 		return
 	fi
 
+	local EPYTEST_DESELECT=()
+	case ${EPYTHON} in
+		python*t)
+			EPYTEST_DESELECT+=(
+				# tests not adjusted for freethreading tags
+				tests/masonry/builders/test_complete.py::test_wheel_c_extension
+				tests/masonry/builders/test_wheel.py::test_tag
+			)
+			;;
+	esac
+
 	# Poetry expects test to be run inside a git repository, otherwise
 	# VCS-related logic doesn't get triggered.  An empty repository
 	# suffices, though.
 	git init || die
 
-	local -x PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
-	epytest -p pytest_mock
+	local EPYTEST_PLUGINS=( pytest-mock )
+	# NB: xdist breaks test collection
+	epytest
 }
