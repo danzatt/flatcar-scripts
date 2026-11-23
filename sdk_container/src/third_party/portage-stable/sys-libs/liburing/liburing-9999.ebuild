@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -9,21 +9,25 @@ DESCRIPTION="Efficient I/O with io_uring"
 HOMEPAGE="https://github.com/axboe/liburing"
 if [[ "${PV}" == *9999 ]] ; then
 	inherit git-r3
-	EGIT_REPO_URI="https://github.com/axboe/liburing.git"
+	EGIT_REPO_URI="
+		https://git.kernel.org/pub/scm/linux/kernel/git/axboe/liburing.git
+		https://github.com/axboe/liburing.git
+	"
+	S="${WORKDIR}"/liburing-${PV}
 else
-	SRC_URI="https://github.com/axboe/liburing/archive/refs/tags/${P}.tar.gz"
+	SRC_URI="
+		https://github.com/axboe/liburing/archive/refs/tags/${P}.tar.gz
+	"
 	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 	QA_PKGCONFIG_VERSION=${PV}
-
 	S="${WORKDIR}"/liburing-${P}
 fi
 
 LICENSE="MIT"
 SLOT="0/2" # liburing.so major version
-
 IUSE="examples static-libs test"
-# fsync test hangs forever
-RESTRICT="!test? ( test )"
+# https://lore.kernel.org/io-uring/13d5c94e-9f3c-4a0e-a468-562e78155ba5@kernel.dk/
+RESTRICT="!test? ( test ) test"
 
 # At least installed headers need <linux/*>, bug #802516
 DEPEND=">=sys-kernel/linux-headers-5.1"
@@ -71,11 +75,14 @@ multilib_src_install_all() {
 multilib_src_test() {
 	local disabled_tests=(
 		accept.c
+		conn-unreach.t
 		fpos.c
 		io_uring_register.c
 		link-timeout.c
 		read-before-exit.c
 		recv-msgall-stream.c
+		msg-ring.c
+		wait-timeout.t
 	)
 	local disabled_test
 	for disabled_test in "${disabled_tests[@]}"; do
