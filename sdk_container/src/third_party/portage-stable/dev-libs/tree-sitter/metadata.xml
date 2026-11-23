@@ -5,11 +5,7 @@
 		<email>abdelqaderali@protonmail.com</email>
 		<name>Ali Abdel-Qader</name>
 	</maintainer>
-	<maintainer type="person">
-		<email>matthew@gentoo.org</email>
-		<name>Matthew Smith</name>
-	</maintainer>
-	<maintainer type="project">
+	<maintainer type="project" proxied="maintainer-and-proxy">
 		<email>pkgcore@gentoo.org</email>
 		<name>Pkgcore</name>
 	</maintainer>
