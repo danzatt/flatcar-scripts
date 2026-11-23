@@ -1,18 +1,18 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
 
-LLVM_COMPAT=( 19 )
+LLVM_COMPAT=( 21 )
 LLVM_OPTIONAL=1
 VERIFY_SIG_METHOD=sigstore
 WANT_LIBTOOL="none"
 
-inherit autotools check-reqs eapi9-ver flag-o-matic linux-info llvm-r1
+inherit autotools check-reqs flag-o-matic linux-info llvm-r2
 inherit multiprocessing pax-utils python-utils-r1 toolchain-funcs
 inherit verify-sig
 
-MY_PV=${PV/_/}
+MY_PV=${PV/_alpha/a}
 MY_P="Python-${MY_PV%_p*}"
 PYVER=$(ver_cut 1-2)
 PATCHSET="python-gentoo-patches-${MY_PV}"
@@ -24,7 +24,7 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz
-	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	https://distfiles.gentoo.org/pub/proj/python/patchsets/${PYVER%t}/${PATCHSET}.tar.xz
 	verify-sig? (
 		https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz.sigstore
 	)
@@ -33,9 +33,11 @@ S="${WORKDIR}/${MY_P}"
 
 LICENSE="PSF-2"
 SLOT="${PYVER}"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+if [[ ${PV} != *_[abr]* ]]; then
+	KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
+fi
 IUSE="
-	bluetooth debug +ensurepip examples gdbm jit libedit +ncurses pgo
+	bluetooth build debug +ensurepip examples gdbm jit libedit +ncurses pgo
 	+readline +sqlite +ssl tail-call-interp test tk valgrind
 "
 REQUIRED_USE="jit? ( ${LLVM_REQUIRED_USE} )"
@@ -49,16 +51,16 @@ RESTRICT="!test? ( test )"
 RDEPEND="
 	app-arch/bzip2:=
 	app-arch/xz-utils:=
-	app-arch/zstd:=
 	app-misc/mime-types
 	>=dev-libs/expat-2.1:=
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	sys-apps/util-linux
+	>=virtual/zlib-1.1.3:=
 	virtual/libintl
+	!build? ( app-arch/zstd:= )
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
-	kernel_linux? ( sys-apps/util-linux:= )
 	ncurses? ( >=sys-libs/ncurses-5.2:= )
 	readline? (
 		!libedit? ( >=sys-libs/readline-4.1:= )
@@ -80,6 +82,7 @@ DEPEND="
 	test? (
 		dev-python/ensurepip-pip
 		dev-python/ensurepip-setuptools
+		dev-python/ensurepip-wheel
 	)
 	valgrind? ( dev-debug/valgrind )
 "
@@ -94,6 +97,12 @@ BDEPEND="
 			llvm-core/llvm:${LLVM_SLOT}
 		')
 	)
+	tail-call-interp? (
+		|| (
+			>=sys-devel/gcc-16:*
+			>=llvm-core/clang-19:*
+		)
+	)
 "
 if [[ ${PV} != *_alpha* ]]; then
 	RDEPEND+="
@@ -105,7 +114,7 @@ PDEPEND="
 "
 
 # https://www.python.org/downloads/metadata/sigstore/
-VERIFY_SIG_CERT_IDENTITY=hugo@python.org
+VERIFY_SIG_CERT_IDENTITY=savannah@python.org
 VERIFY_SIG_CERT_OIDC_ISSUER=https://github.com/login/oauth
 
 # large file tests involve a 2.5G file being copied (duplicated)
@@ -136,7 +145,7 @@ pkg_pretend() {
 
 pkg_setup() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
-		use jit && llvm-r1_pkg_setup
+		use jit && llvm-r2_pkg_setup
 		if use test || use pgo; then
 			check-reqs_pkg_setup
 
@@ -145,6 +154,10 @@ pkg_setup() {
 				CONFIG_CHECK+="~${f} "
 			done
 			linux-info_pkg_setup
+		fi
+		if use tail-call-interp; then
+			tc-check-min_ver gcc 16
+			tc-check-min_ver clang 19
 		fi
 	fi
 }
@@ -186,10 +199,10 @@ build_cbuild_python() {
 	#
 	# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
 	local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-	local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
+	local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
 	local -x CFLAGS= LDFLAGS=
 	local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-	local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
+	local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
 
 	# We need to build our own Python on CBUILD first, and feed it in.
 	# bug #847910
@@ -225,6 +238,7 @@ build_cbuild_python() {
 		_tkinter
 		pyexpat
 		zlib
+		_zstd
 		# We disabled these for CBUILD because Python's setup.py can't handle locating
 		# libdir correctly for cross. This should be rechecked for the pure Makefile approach,
 		# and uncommented if needed.
@@ -367,6 +381,10 @@ src_configure() {
 			# Hangs (actually runs indefinitely executing itself w/ many cpython builds)
 			# bug #900429
 			-x test_tools
+
+			# Test terminates abruptly which corrupts written profile data
+			# bug #964023
+			-x test_pyrepl
 		)
 
 		if has_version "app-arch/rpm" ; then
@@ -396,7 +414,6 @@ src_configure() {
 		--without-ensurepip
 		--without-lto
 		--with-system-expat
-		--with-system-libmpdec
 		--with-platlibdir=lib
 		--with-pkg-config=yes
 		--with-wheel-pkg-dir="${EPREFIX}"/usr/lib/python/ensurepip
@@ -421,6 +438,7 @@ src_configure() {
 	cat > Modules/Setup.local <<-EOF || die
 		*disabled*
 		nis
+		$(usev build '_zstd')
 		$(usev !gdbm '_gdbm _dbm')
 		$(usev !sqlite '_sqlite3')
 		$(usev !ssl '_hashlib _ssl')
@@ -479,10 +497,11 @@ src_compile() {
 	export GENTOO_CPYTHON_BUILD=1
 
 	if use pgo ; then
-		# bug 660358
-		local -x COLUMNS=80
+		# https://bugs.gentoo.org/660358
 		local -x PYTHONDONTWRITEBYTECODE=
 		local -x TMPDIR=/var/tmp
+		# https://bugs.gentoo.org/984547
+		unset COLUMNS
 	fi
 
 	# also need to clear the flags explicitly here or they end up
@@ -519,10 +538,11 @@ src_test() {
 		"${COMMON_TEST_SKIPS[@]}"
 	)
 
-	# bug 660358
-	local -x COLUMNS=80
+	# https://bugs.gentoo.org/660358
 	local -x PYTHONDONTWRITEBYTECODE=
 	local -x TMPDIR=/var/tmp
+	# https://bugs.gentoo.org/984547
+	unset COLUMNS
 
 	nonfatal emake -Onone test EXTRATESTOPTS="${test_opts[*]}" \
 		CPPFLAGS= CFLAGS= LDFLAGS= < /dev/tty
@@ -533,9 +553,14 @@ src_test() {
 
 src_install() {
 	local libdir=${ED}/usr/lib/python${PYVER}
+	local build_dir=$(<pybuilddir.txt)
 
 	# -j1 hack for now for bug #843458
 	emake -j1 DESTDIR="${D}" TEST_MODULES=no altinstall
+
+	# Install build-details.json manually because it was randomly removed
+	# from altinstall in https://github.com/python/cpython/pull/142269.
+	cp "${build_dir}"/build-details.json "${libdir}"/ || die
 
 	# Fix collisions between different slots of Python.
 	rm "${ED}/usr/$(get_libdir)/libpython3.so" || die
@@ -594,39 +619,28 @@ src_install() {
 		"${ED}/etc/init.d/pydoc-${PYVER}" || die "sed failed"
 
 	# python-exec wrapping support
-	local pymajor=${PYVER%.*}
-	local EPYTHON=python${PYVER}
-	local scriptdir=${D}$(python_get_scriptdir)
-	mkdir -p "${scriptdir}" || die
-	# python and pythonX
-	ln -s "../../../bin/${abiver}" "${scriptdir}/python${pymajor}" || die
-	ln -s "python${pymajor}" "${scriptdir}/python" || die
-	# python-config and pythonX-config
-	# note: we need to create a wrapper rather than symlinking it due
-	# to some random dirname(argv[0]) magic performed by python-config
-	cat > "${scriptdir}/python${pymajor}-config" <<-EOF || die
-		#!/bin/sh
-		exec "${abiver}-config" "\${@}"
-	EOF
-	chmod +x "${scriptdir}/python${pymajor}-config" || die
-	ln -s "python${pymajor}-config" "${scriptdir}/python-config" || die
-	# pydoc
-	ln -s "../../../bin/pydoc${PYVER}" "${scriptdir}/pydoc" || die
-	# idle
-	if use tk; then
-		ln -s "../../../bin/idle${PYVER}" "${scriptdir}/idle" || die
-	fi
-}
-
-pkg_postinst() {
-	if ver_replacing -lt 3.14.0_beta3; then
-		ewarn "Python 3.14.0b3 has changed its module ABI.  The .pyc files"
-		ewarn "installed previously are no longer valid and will be regenerated"
-		ewarn "(or ignored) on the next import.  This may cause sandbox failures"
-		ewarn "when installing some packages and checksum mismatches when removing"
-		ewarn "old versions.  To actively prevent this, rebuild all packages"
-		ewarn "installing Python 3.14 modules, e.g. using:"
-		ewarn
-		ewarn "  emerge -1v /usr/lib/python3.14/site-packages"
+	if [[ ${PV} != *_alpha* ]]; then
+		local pymajor=${PYVER%.*}
+		local EPYTHON=python${PYVER}
+		local scriptdir=${D}$(python_get_scriptdir)
+		mkdir -p "${scriptdir}" || die
+		# python and pythonX
+		ln -s "../../../bin/${abiver}" "${scriptdir}/python${pymajor}" || die
+		ln -s "python${pymajor}" "${scriptdir}/python" || die
+		# python-config and pythonX-config
+		# note: we need to create a wrapper rather than symlinking it due
+		# to some random dirname(argv[0]) magic performed by python-config
+		cat > "${scriptdir}/python${pymajor}-config" <<-EOF || die
+			#!/bin/sh
+			exec "${abiver}-config" "\${@}"
+		EOF
+		chmod +x "${scriptdir}/python${pymajor}-config" || die
+		ln -s "python${pymajor}-config" "${scriptdir}/python-config" || die
+		# pydoc
+		ln -s "../../../bin/pydoc${PYVER}" "${scriptdir}/pydoc" || die
+		# idle
+		if use tk; then
+			ln -s "../../../bin/idle${PYVER}" "${scriptdir}/idle" || die
+		fi
 	fi
 }

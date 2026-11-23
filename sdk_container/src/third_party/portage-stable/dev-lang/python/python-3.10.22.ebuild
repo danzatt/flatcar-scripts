@@ -1,14 +1,16 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="8"
 WANT_LIBTOOL="none"
 
-inherit autotools check-reqs flag-o-matic git-r3 multiprocessing pax-utils
-inherit prefix toolchain-funcs
+inherit autotools check-reqs flag-o-matic multiprocessing pax-utils
+inherit prefix toolchain-funcs verify-sig
 
+MY_PV=${PV/_rc/rc}
+MY_P="Python-${MY_PV%_p*}"
 PYVER=$(ver_cut 1-2)
-PATCHSET="python-gentoo-patches-3.9.23"
+PATCHSET="python-gentoo-patches-${MY_PV}"
 
 DESCRIPTION="An interpreted, interactive, object-oriented programming language"
 HOMEPAGE="
@@ -16,16 +18,20 @@ HOMEPAGE="
 	https://github.com/python/cpython/
 "
 SRC_URI="
-	https://dev.gentoo.org/~mgorny/dist/python/${PATCHSET}.tar.xz
+	https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz
+	https://distfiles.gentoo.org/pub/proj/python/patchsets/${PYVER%t}/${PATCHSET}.tar.xz
+	verify-sig? (
+		https://www.python.org/ftp/python/${PV%%_*}/${MY_P}.tar.xz.asc
+	)
 "
-EGIT_REPO_URI="https://github.com/python/cpython.git"
-EGIT_BRANCH=${PYVER}
+S="${WORKDIR}/${MY_P}"
 
 LICENSE="PSF-2"
 SLOT="${PYVER}"
+KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86"
 IUSE="
-	bluetooth debug +ensurepip examples gdbm +ncurses pgo +readline
-	+sqlite +ssl test tk valgrind
+	bluetooth debug +ensurepip examples gdbm libedit +ncurses pgo
+	+readline +sqlite +ssl test tk valgrind
 "
 RESTRICT="!test? ( test )"
 
@@ -42,13 +48,16 @@ RDEPEND="
 	dev-libs/libffi:=
 	dev-libs/mpdecimal:=
 	dev-python/gentoo-common
-	>=sys-libs/zlib-1.1.3:=
+	sys-apps/util-linux
+	>=virtual/zlib-1.1.3:=
 	virtual/libcrypt:=
 	virtual/libintl
 	gdbm? ( sys-libs/gdbm:=[berkdb] )
-	kernel_linux? ( sys-apps/util-linux:= )
 	ncurses? ( >=sys-libs/ncurses-5.2:= )
-	readline? ( >=sys-libs/readline-4.1:= )
+	readline? (
+		!libedit? ( >=sys-libs/readline-4.1:= )
+		libedit? ( dev-libs/libedit:= )
+	)
 	sqlite? ( >=dev-db/sqlite-3.3.8:3= )
 	ssl? ( >=dev-libs/openssl-1.1.1:= )
 	tk? (
@@ -74,6 +83,7 @@ BDEPEND="
 	dev-build/autoconf-archive
 	app-alternatives/awk
 	virtual/pkgconfig
+	verify-sig? ( sec-keys/openpgp-keys-python )
 "
 PDEPEND="
 	ensurepip? (
@@ -81,6 +91,8 @@ PDEPEND="
 		dev-python/ensurepip-setuptools
 	)
 "
+
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/python.org.asc
 
 # large file tests involve a 2.5G file being copied (duplicated)
 CHECKREQS_DISK_BUILD=5500M
@@ -98,7 +110,9 @@ pkg_setup() {
 }
 
 src_unpack() {
-	git-r3_src_unpack
+	if use verify-sig; then
+		verify-sig_verify_detached "${DISTDIR}"/${MY_P}.tar.xz{,.asc}
+	fi
 	default
 }
 
@@ -123,6 +137,69 @@ src_prepare() {
 	sed -i -e "/self\.parallel/s:True:${jobs}:" setup.py || die
 
 	eautoreconf
+}
+
+build_cbuild_python() {
+	# Hack to workaround get_libdir not being able to handle CBUILD, bug #794181
+	local cbuild_libdir=$(unset PKG_CONFIG_PATH ; $(tc-getBUILD_PKG_CONFIG) --keep-system-libs --libs-only-L libffi)
+
+	# pass system CFLAGS & LDFLAGS as _NODIST, otherwise they'll get
+	# propagated to sysconfig for built extensions
+	#
+	# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
+	local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
+	local -x LDFLAGS_NODIST="${BUILD_LDFLAGS} -fno-lto"
+	local -x CFLAGS= LDFLAGS=
+	local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
+	local -x BUILD_LDFLAGS="${LDFLAGS_NODIST}"
+
+	# We need to build our own Python on CBUILD first, and feed it in.
+	# bug #847910 and bug #864911.
+	local myeconfargs_cbuild=(
+		"${myeconfargs[@]}"
+
+		--prefix="${BROOT}"/usr
+		--libdir="${cbuild_libdir:2}"
+
+		# Avoid needing to load the right libpython.so.
+		--disable-shared
+
+		# As minimal as possible for the mini CBUILD Python
+		# we build just for cross.
+		--without-lto
+		--disable-optimizations
+	)
+
+	mkdir "${WORKDIR}"/${P}-${CBUILD} || die
+	pushd "${WORKDIR}"/${P}-${CBUILD} &> /dev/null || die
+	# We disable _ctypes and _crypt for CBUILD because Python's setup.py can't handle locating
+	# libdir correctly for cross.
+	PYTHON_DISABLE_MODULES+=" _ctypes _crypt" \
+		ECONF_SOURCE="${S}" econf_build "${myeconfargs_cbuild[@]}"
+
+	# Avoid as many dependencies as possible for the cross build.
+	cat >> Makefile <<-EOF || die
+		MODULE_NIS=disabled
+		MODULE__DBM=disabled
+		MODULE__GDBM=disabled
+		MODULE__DBM=disabled
+		MODULE__SQLITE3=disabled
+		MODULE__HASHLIB=disabled
+		MODULE__SSL=disabled
+		MODULE__CURSES=disabled
+		MODULE__CURSES_PANEL=disabled
+		MODULE_READLINE=disabled
+		MODULE__TKINTER=disabled
+		MODULE_PYEXPAT=disabled
+		MODULE_ZLIB=disabled
+	EOF
+
+	# Unfortunately, we do have to build this immediately, and
+	# not in src_compile, because CHOST configure for Python
+	# will check the existence of the Python it was pointed to
+	# immediately.
+	PYTHON_DISABLE_MODULES+=" _ctypes _crypt" emake
+	popd &> /dev/null || die
 }
 
 src_configure() {
@@ -185,6 +262,11 @@ src_configure() {
 				-x test_ctypes
 				-x test_external_inspection
 				-x test_statistics
+			)
+			;;
+		powerpc64-*) # big endian
+			COMMON_TEST_SKIPS+=(
+				-x test_descr
 			)
 			;;
 		riscv*)
@@ -298,6 +380,7 @@ src_configure() {
 		ac_cv_header_stropts_h=no
 
 		--enable-shared
+		--without-static-libpython
 		--enable-ipv6
 		--infodir='${prefix}/share/info'
 		--mandir='${prefix}/share/man'
@@ -313,6 +396,7 @@ src_configure() {
 
 		$(use_with debug assertions)
 		$(use_enable pgo optimizations)
+		$(use_with readline readline "$(usex libedit editline readline)")
 		$(use_with valgrind)
 	)
 
@@ -328,69 +412,10 @@ src_configure() {
 	fi
 
 	if tc-is-cross-compiler ; then
-		# Hack to workaround get_libdir not being able to handle CBUILD, bug #794181
-		local cbuild_libdir=$(unset PKG_CONFIG_PATH ; $(tc-getBUILD_PKG_CONFIG) --keep-system-libs --libs-only-L libffi)
-
-		# pass system CFLAGS & LDFLAGS as _NODIST, otherwise they'll get
-		# propagated to sysconfig for built extensions
-		#
-		# -fno-lto to avoid bug #700012 (not like it matters for mini-CBUILD Python anyway)
-		local -x CFLAGS_NODIST="${BUILD_CFLAGS} -fno-lto"
-		local -x LDFLAGS_NODIST=${BUILD_LDFLAGS}
-		local -x CFLAGS= LDFLAGS=
-		local -x BUILD_CFLAGS="${CFLAGS_NODIST}"
-		local -x BUILD_LDFLAGS=${LDFLAGS_NODIST}
-
-		# We need to build our own Python on CBUILD first, and feed it in.
-		# bug #847910 and bug #864911.
-		local myeconfargs_cbuild=(
-			"${myeconfargs[@]}"
-
-			--libdir="${cbuild_libdir:2}"
-
-			# Avoid needing to load the right libpython.so.
-			--disable-shared
-
-			# As minimal as possible for the mini CBUILD Python
-			# we build just for cross.
-			--without-lto
-			--disable-optimizations
-		)
-
+		build_cbuild_python
 		# Point the imminent CHOST build to the Python we just
 		# built for CBUILD.
 		export PATH="${WORKDIR}/${P}-${CBUILD}:${PATH}"
-
-		mkdir "${WORKDIR}"/${P}-${CBUILD} || die
-		pushd "${WORKDIR}"/${P}-${CBUILD} &> /dev/null || die
-		# We disable _ctypes and _crypt for CBUILD because Python's setup.py can't handle locating
-		# libdir correctly for cross.
-		PYTHON_DISABLE_MODULES="${PYTHON_DISABLE_MODULES} _ctypes _crypt" \
-			ECONF_SOURCE="${S}" econf_build "${myeconfargs_cbuild[@]}"
-
-		# Avoid as many dependencies as possible for the cross build.
-		cat >> Makefile <<-EOF || die
-			MODULE_NIS=disabled
-			MODULE__DBM=disabled
-			MODULE__GDBM=disabled
-			MODULE__DBM=disabled
-			MODULE__SQLITE3=disabled
-			MODULE__HASHLIB=disabled
-			MODULE__SSL=disabled
-			MODULE__CURSES=disabled
-			MODULE__CURSES_PANEL=disabled
-			MODULE_READLINE=disabled
-			MODULE__TKINTER=disabled
-			MODULE_PYEXPAT=disabled
-			MODULE_ZLIB=disabled
-		EOF
-
-		# Unfortunately, we do have to build this immediately, and
-		# not in src_compile, because CHOST configure for Python
-		# will check the existence of the Python it was pointed to
-		# immediately.
-		PYTHON_DISABLE_MODULES="${PYTHON_DISABLE_MODULES} _ctypes _crypt" emake
-		popd &> /dev/null || die
 	fi
 
 	# pass system CFLAGS & LDFLAGS as _NODIST, otherwise they'll get
@@ -484,10 +509,7 @@ src_test() {
 src_install() {
 	local libdir=${ED}/usr/lib/python${PYVER}
 
-	emake DESTDIR="${D}" altinstall
-
-	# Remove static library
-	rm "${ED}"/usr/$(get_libdir)/libpython*.a || die
+	emake DESTDIR="${D}" TEST_MODULES=no altinstall
 
 	# Fix collisions between different slots of Python.
 	rm "${ED}/usr/$(get_libdir)/libpython3.so" || die
@@ -517,16 +539,16 @@ src_install() {
 		rm -r "${libdir}"/ensurepip || die
 	fi
 	if ! use sqlite; then
-		rm -r "${libdir}/"{sqlite3,test/test_sqlite*} || die
+		rm -r "${libdir}/"sqlite3 || die
 	fi
 	if ! use tk; then
 		rm -r "${ED}/usr/bin/idle${PYVER}" || die
-		rm -r "${libdir}/"{idlelib,tkinter,test/test_tk*} || die
+		rm -r "${libdir}/"{idlelib,tkinter} || die
 	fi
 
 	ln -s ../python/EXTERNALLY-MANAGED "${libdir}/EXTERNALLY-MANAGED" || die
 
-	dodoc Misc/{ACKS,HISTORY}
+	dodoc Misc/{ACKS,HISTORY,NEWS}
 
 	if use examples; then
 		docinto examples
